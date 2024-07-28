@@ -17,7 +17,7 @@ repos:
     hooks:
       - id: pytest-check
         name: pytest-check
-        entry: ./venv/Scripts/python.exe -m pytest
+        entry: ./venv/bin/python -m pytest
         stages: ["push"]
         language: system
         pass_filenames: false
