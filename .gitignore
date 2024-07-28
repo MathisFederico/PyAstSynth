@@ -136,3 +136,4 @@ dmypy.json
 
 .DS_store
 TODO
+*.drawio
