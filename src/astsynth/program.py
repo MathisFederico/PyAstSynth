@@ -31,12 +31,20 @@ class ProgramGraph(DiGraph):
         self.empty_blank(blank)
         self.fill_blank(blank, variable)
 
+    @property
+    def blanks(self) -> list[Blank]:
+        return [node for node in self.nodes() if isinstance(node, Blank)]
 
-class Program:
+    @property
+    def complete(self) -> bool:
+        return len(self.empty_blanks) == 0
+
+
+class ProgramWritter:
     def __init__(
         self,
         variables: dict[str, Variable],
-        output_type: Type[object],
+        program_graph: ProgramGraph,
     ) -> None:
         self.constants: list[ast.Assign] = []
         inputs: dict[str, Variable] = {}
@@ -54,21 +62,7 @@ class Program:
             for name, value in inputs.items()
         ]
 
-        self.graph = ProgramGraph(output_type=output_type)
-
-    @property
-    def blanks(self) -> list[Blank]:
-        return [node for node in self.graph.nodes() if isinstance(node, Blank)]
-
-    @property
-    def complete(self) -> bool:
-        return len(self.graph.empty_blanks) == 0
-
-    def fill_blank(self, blank: Blank, variable: Variable):
-        self.graph.fill_blank(blank=blank, variable=variable)
-
-    def replace_blank(self, blank: Blank, variable: Variable):
-        self.graph.replace_blank(blank=blank, variable=variable)
+        self.graph = program_graph
 
     def _blank_filled_ast(self, blank: Blank):
         blank_active_childs = [

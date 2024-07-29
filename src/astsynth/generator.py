@@ -4,7 +4,7 @@ from typing import Any, Generator, Optional, Type
 
 from astsynth.brancher import BFSHBrancher
 from astsynth.blanks_and_content import Variable, VariableKind
-from astsynth.program import Program
+from astsynth.program import ProgramWritter, ProgramGraph
 
 
 class ProgramGenerator:
@@ -24,23 +24,24 @@ class ProgramGenerator:
         self.brancher.variables = list(self.variables.values())
 
     def enumerate(self) -> Generator[ast.Module, None, None]:
-        program = Program(variables=self.variables, output_type=self.output_type)
+        graph = ProgramGraph(output_type=self.output_type)
+        program = ProgramWritter(variables=self.variables, program_graph=graph)
 
-        choosen_blank = self.brancher.choose_blank(program.blanks)
+        choosen_blank = self.brancher.choose_blank(graph.blanks)
         while choosen_blank is not None and not self.brancher.exausted:
-            while not program.complete:
-                choosen_blank = self.brancher.choose_blank(program.blanks)
+            while not graph.complete:
+                choosen_blank = self.brancher.choose_blank(graph.blanks)
                 candidate_variable = self.brancher.choose_variable_for_blank(
                     blank=choosen_blank
                 )
-                program.fill_blank(blank=choosen_blank, variable=candidate_variable)
+                graph.fill_blank(blank=choosen_blank, variable=candidate_variable)
             yield program.generate_ast()
 
-            replaced_blank = self.brancher.choose_blank(program.blanks)
+            replaced_blank = self.brancher.choose_blank(graph.blanks)
             replacement_variable = self.brancher.choose_variable_for_blank(
                 blank=replaced_blank
             )
-            program.replace_blank(blank=replaced_blank, variable=replacement_variable)
+            graph.replace_blank(blank=replaced_blank, variable=replacement_variable)
             yield program.generate_ast()
 
 
