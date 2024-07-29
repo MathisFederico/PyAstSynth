@@ -16,7 +16,7 @@ class BFSHBrancher:
 
     def choose_variable_for_blank(self, blank: Blank) -> Variable:
         for canditate_variable in self.variables:
-            if not isinstance(canditate_variable.value, blank.type):
+            if not issubclass(canditate_variable.type, blank.type):
                 continue
             if canditate_variable in self.used_variables[blank]:
                 continue

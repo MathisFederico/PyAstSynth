@@ -1,24 +1,44 @@
 import ast
-from typing import Any, Generator, Optional, Type
+from typing import Any, Callable, Generator, Optional, Type
 
 
 from astsynth.brancher import BFSHBrancher
-from astsynth.blanks_and_content import Variable, VariableKind
+from astsynth.blanks_and_content import Operation, Variable, VariableKind
 from astsynth.program import ProgramWritter, ProgramGraph
 
 
 class ProgramGenerator:
     def __init__(
         self,
-        inputs: Optional[dict[str, Any]] = None,
+        inputs: Optional[dict[str, Type[Any]]] = None,
         allowed_constants: Optional[dict[str, Any]] = None,
+        operations: Optional[list[Callable[..., Any]]] = None,
         output_type: Type[object] = object,
         brancher: BFSHBrancher = BFSHBrancher(),
     ) -> None:
-        self.variables = _to_variables(inputs, variable_type=VariableKind.INPUT)
-        self.variables.update(
-            _to_variables(allowed_constants, variable_type=VariableKind.CONSTANT)
-        )
+        self.variables = {}
+
+        if inputs is None:
+            inputs = {}
+        for name, var_type in inputs.items():
+            self.variables[name] = Variable(
+                name=name, type=var_type, kind=VariableKind.INPUT
+            )
+
+        if allowed_constants is None:
+            allowed_constants = {}
+        for name, value in allowed_constants.items():
+            self.variables[name] = Variable(
+                name=name, value=value, type=type(value), kind=VariableKind.CONSTANT
+            )
+
+        self.operations = {}
+        if operations is None:
+            operations = []
+        for op_func in operations:
+            operation = Operation.from_func(op_func)
+            self.operations[operation.name] = operation
+
         self.output_type = output_type
         self.brancher = brancher
         self.brancher.variables = list(self.variables.values())
@@ -43,14 +63,3 @@ class ProgramGenerator:
             )
             graph.replace_blank(blank=replaced_blank, variable=replacement_variable)
             yield program.generate_ast()
-
-
-def _to_variables(
-    var_dict: Optional[dict[str, Any]], variable_type: VariableKind
-) -> dict[str, Variable]:
-    variables = {}
-    if var_dict is None:
-        var_dict = {}
-    for name, value in var_dict.items():
-        variables[name] = Variable(name=name, value=value, kind=variable_type)
-    return variables
