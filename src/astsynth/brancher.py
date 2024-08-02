@@ -1,35 +1,19 @@
-from typing import Optional
-from astsynth.blanks_and_content import Blank, Variable
+from typing import Optional, OrderedDict
+
+from astsynth.blanks_and_content import Blank, BlankContent
+from astsynth.program import ProgramGraph
 
 
 class BFSHBrancher:
-    def __init__(self) -> None:
-        self._next_variables = None
-        self.variables: list[Variable] = []
-        self.used_variables: dict[Blank, list[Variable]] = {}
+    """Agent choosing which program blank to fill and with what available content."""
 
-    def choose_blank(self, available_blanks: list[Blank]) -> Optional[Blank]:
-        for blank in available_blanks:
-            if blank not in self.used_variables:
-                self.used_variables[blank] = []
-        return available_blanks[0]
-
-    def choose_variable_for_blank(self, blank: Blank) -> Variable:
-        for canditate_variable in self.variables:
-            if not issubclass(canditate_variable.type, blank.type):
-                continue
-            if canditate_variable in self.used_variables[blank]:
-                continue
-            self.used_variables[blank].append(canditate_variable)
-            return canditate_variable
-
-    @property
-    def exausted(self) -> bool:
-        blanks_exausted = {}
-        for blank, used_variables in self.used_variables.items():
-            possibilities = set(
-                var for var in self.variables if issubclass(var.type, blank.type)
-            )
-            blanks_exausted[blank] = set(used_variables) == possibilities
-
-        return all(blanks_exausted.values())
+    def choose_blank_candidate(
+        self, candidates: OrderedDict[Blank, list[BlankContent]], graph: ProgramGraph
+    ) -> tuple[Optional[Blank], Optional[BlankContent]]:
+        if graph.empty_blanks:
+            choosen_blank = graph.empty_blanks[0]
+            if choosen_blank not in candidates:
+                return None, None
+            return choosen_blank, list(candidates[choosen_blank])[0]
+        choosen_blank, blank_candidates = candidates.popitem(last=True)
+        return choosen_blank, blank_candidates[0]

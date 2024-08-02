@@ -43,7 +43,7 @@ class TestGeneration:
             ]
         )
 
-    def test_functions_usage(self):
+    def test_operation_on_variables(self):
         def concat_strings(string: str, other_string: str) -> str:
             return string + other_string
 
@@ -53,7 +53,7 @@ class TestGeneration:
         self.fixture.given_code_generator(
             ProgramGenerator(
                 inputs={"number": int, "desc": str},
-                allowed_constants={"N": 3, "A": "a"},
+                allowed_constants={"A": "a"},
                 operations=[concat_strings, repeat],
                 output_type=str,
             )
@@ -62,7 +62,6 @@ class TestGeneration:
 
         common_code = [
             'A = "a"',
-            "N = 42",
             "",
             "def generated_func(number: int, desc: str):",
         ]
@@ -78,10 +77,10 @@ class TestGeneration:
                     common_code + ["    return concat_strings(desc, A)"]
                 ),
                 function_ast_from_source_lines(
-                    common_code + ["    return concat_strings(A, desc)"]
+                    common_code + ["    return concat_strings(A, A)"]
                 ),
                 function_ast_from_source_lines(
-                    common_code + ["    return concat_strings(A, A)"]
+                    common_code + ["    return concat_strings(A, desc)"]
                 ),
                 function_ast_from_source_lines(
                     common_code + ["    return repeat(desc, number)"]
@@ -112,12 +111,13 @@ class CodeGenerationFixture:
 
     def when_enumerating_generation(self):
         for program_tree in self.generator.enumerate():
+            astor.to_source(program_tree)
             self.generated_codes.append(program_tree)
 
     def then_generated_functions_asts_should_be(self, expected_functions: set[str]):
-        assert _to_source_list(self.generated_codes) == _to_source_list(
-            expected_functions
-        )
+        generated = _to_source_list(self.generated_codes)
+        expected = _to_source_list(expected_functions)
+        assert generated == expected
 
 
 def _to_source_list(asts: list[ast.Module]) -> list[str]:
