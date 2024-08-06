@@ -12,7 +12,7 @@ from astsynth.program import ProgramGraph, ProgramGraphBuilder
 
 class TestProgramGraph:
     @pytest.fixture(autouse=True)
-    def setup(self, graph_fixture: "ProgramGraphFixture"):
+    def setup(self, graph_fixture: "ProgramGraphFixture") -> None:
         self.fixture = graph_fixture
 
     def test_fill_blank_variable(self):
@@ -90,23 +90,21 @@ def graph_fixture() -> "ProgramGraphFixture":
 
 class ProgramGraphFixture:
     def __init__(self) -> None:
-        self.graph = None
+        self.graph: ProgramGraph = ProgramGraph()
 
-    def given_graph(self, graph: ProgramGraph):
+    def given_graph(self, graph: ProgramGraph) -> None:
         self.graph = graph
 
-    def when_filling_blank(self, blank: Blank, content: BlankContent):
-        if self.graph is None:
-            raise TypeError("A graph should be given")
+    def when_filling_blank(self, blank: Blank, content: BlankContent) -> None:
         self.graph.fill_blank(blank=blank, content=content)
 
-    def when_replacing_blank(self, blank: Blank, content: BlankContent):
-        if self.graph is None:
-            raise TypeError("A graph should be given")
+    def when_replacing_blank(self, blank: Blank, content: BlankContent) -> None:
         self.graph.replace_blank(blank, content)
 
-    def then_blank_value_should_be(self, blank: Blank, expected_content: BlankContent):
+    def then_blank_value_should_be(
+        self, blank: Blank, expected_content: BlankContent
+    ) -> None:
         assert self.graph.content(blank) == expected_content
 
-    def then_empty_blanks_should_be(self, expected_empty_blanks_id: set[str]):
-        assert set(self.graph.empty_blanks) == expected_empty_blanks_id
+    def then_empty_blanks_should_be(self, expected_empty_blanks: set[Blank]) -> None:
+        assert set(self.graph.empty_blanks) == expected_empty_blanks

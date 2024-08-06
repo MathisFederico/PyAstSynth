@@ -1,5 +1,5 @@
 import ast
-from typing import Optional, Type
+from typing import Any, Optional, Sequence, Type
 from typing_extensions import Self
 
 
@@ -23,33 +23,33 @@ class ProgramGraph(DiGraph):
 
     def __init__(
         self,
-        incoming_graph_data=None,
+        incoming_graph_data: dict = None,
         output_type: Type[object] = object,
-        **attr,
-    ):
+        **attr: Any,
+    ) -> None:
         super().__init__(incoming_graph_data, **attr)
         self.root = Blank(id="return", type=output_type)
         self.add_node(self.root, depth=0)
 
-    def fill_blank(self, blank: Blank, content: BlankContent):
+    def fill_blank(self, blank: Blank, content: BlankContent) -> None:
         if isinstance(content, Variable):
             return self._fill_with_variable(blank, content)
         if isinstance(content, Operation):
             return self._fill_with_operation(blank, content)
         raise NotImplementedError()
 
-    def blank_with_id(self, blank_id: str):
+    def blank_with_id(self, blank_id: str) -> Blank:
         blanks_with_id = [b for b in self.active_blanks if b.id == blank_id]
         if not blanks_with_id:
             raise NodeNotFound("Could not find blank with id: %s", blank_id)
         return blanks_with_id[0]
 
-    def _fill_with_variable(self, blank: Blank, variable: Variable):
+    def _fill_with_variable(self, blank: Blank, variable: Variable) -> None:
         var_node = self._value_node(blank, variable)
         self.add_node(var_node, content=variable)
         self.add_edge(blank, var_node, active=True)
 
-    def _fill_with_operation(self, blank: Blank, operation: Operation):
+    def _fill_with_operation(self, blank: Blank, operation: Operation) -> None:
         op_node = self._value_node(blank, operation)
         self.add_node(op_node, content=operation)
         self.add_edge(blank, op_node, active=True)
@@ -59,20 +59,20 @@ class ProgramGraph(DiGraph):
             self.add_node(new_blank, depth=self.nodes[blank]["depth"] + 1)
             self.add_edge(op_node, new_blank, active=True)
 
-    def _value_node(self, blank: Blank, content: BlankContent):
+    def _value_node(self, blank: Blank, content: BlankContent) -> str:
         return blank.id + ">" + content.name
 
-    def replace_blank(self, blank: Blank, content: Variable):
+    def replace_blank(self, blank: Blank, content: BlankContent) -> None:
         if self.content(blank) is not None:
             self.deactivate_blank(blank)
         self.fill_blank(blank, content)
 
-    def deactivate_blank(self, blank: Blank):
+    def deactivate_blank(self, blank: Blank) -> None:
         self._deactivate_single_node(blank)
         for other_blank in descendants(self, blank):
             self._deactivate_single_node(other_blank)
 
-    def _deactivate_single_node(self, node: Blank | str):
+    def _deactivate_single_node(self, node: Blank | str) -> None:
         for succ in self.successors(node):
             self.edges[node, succ]["active"] = False
 
@@ -120,7 +120,7 @@ class ProgramGraph(DiGraph):
             anticipated_content = {}
         filled_blanks_content: BlanksConfig = {}
 
-        would_be_disabled_blanks = set()
+        would_be_disabled_blanks: set[Blank | BlankContent] = set()
         for changed_blank in anticipated_content:
             would_be_disabled_blanks = would_be_disabled_blanks.union(
                 [
@@ -134,7 +134,7 @@ class ProgramGraph(DiGraph):
             if blank in would_be_disabled_blanks:
                 continue
             if blank in anticipated_content:
-                content = anticipated_content[blank]
+                content: Optional[BlankContent] = anticipated_content[blank]
             else:
                 content = self.content(blank)
             filled_blanks_content[blank] = content
@@ -170,7 +170,12 @@ class ProgramWritter:
             self.constants.append(
                 ast.Assign(targets=[ast.Name(name)], value=ast.Constant(variable.value))
             )
-        self.constants.sort(key=lambda c: c.targets[0].id)
+
+        def _assign_const_id(assign: ast.Assign) -> str:
+            target_name: ast.Name = assign.targets[0]  # type: ignore
+            return target_name.id
+
+        self.constants.sort(key=_assign_const_id)
 
         self.inputs_arguments = [
             ast.arg(name, annotation=ast.Name(value.type.__name__))
@@ -180,7 +185,7 @@ class ProgramWritter:
         self.graph = program_graph
 
     def generate_ast(self):
-        function_body = [ast.Return(_blank_content_to_ast(self.graph.root, self.graph))]
+        function_body = self._root_blank_to_ast_body(self.graph.root, self.graph)
 
         function = ast.FunctionDef(
             name="generated_func",
@@ -191,17 +196,51 @@ class ProgramWritter:
 
         return ast.Module(body=self.constants + [function])
 
+    def _blank_ast_value(
+        self, blank: Blank, graph: ProgramGraph, variable_count: int
+    ) -> tuple[ast.Name | ast.Call, list[tuple[str, Blank]], int]:
+        content = graph.content(blank)
+        missing_variables = []
+        if isinstance(content, Variable):
+            ast_value: ast.Name | ast.Call = ast.Name(content.name)
+        if isinstance(content, Operation):
+            args_asts: list[ast.expr] = []
+            for op_blank in graph.sub_blanks(blank=blank, operation=content):
+                op_blank_content = graph.content(op_blank)
+
+                if isinstance(op_blank_content, Variable):
+                    args_asts.append(ast.Name(op_blank_content.name))
+
+                if isinstance(op_blank_content, Operation):
+                    variable_name = f"x{variable_count}"
+                    args_asts.append(ast.Name(variable_name))
+                    missing_variables.append((variable_name, op_blank))
+                    variable_count += 1
+            ast_value = ast.Call(
+                func=ast.Name(content.name), args=args_asts, keywords=[]
+            )
+        return ast_value, missing_variables, variable_count
+
+    def _root_blank_to_ast_body(
+        self,
+        blank: Blank,
+        graph: ProgramGraph,
+    ) -> Sequence[ast.Return | ast.Assign]:
+        ast_value, missing_variables, variables_count = self._blank_ast_value(
+            blank, graph, 0
+        )
+        ast_lines: list[ast.Return | ast.Assign] = [ast.Return(ast_value)]
+
+        while missing_variables:
+            var_name, blank = missing_variables.pop(0)
+            ast_value, missing_variables, variables_count = self._blank_ast_value(
+                blank, graph, variables_count
+            )
+            ast_lines.insert(
+                0, ast.Assign(targets=[ast.Name(var_name)], value=ast_value)
+            )
+
+        return ast_lines
+
     def __repr__(self) -> str:
         return to_source(self.generate_ast())
-
-
-def _blank_content_to_ast(blank: Blank, graph: ProgramGraph):
-    content = graph.content(blank)
-    if isinstance(content, Variable):
-        return ast.Name(content.name)
-    if isinstance(content, Operation):
-        args_asts = [
-            _blank_content_to_ast(op_blank, graph=graph)
-            for op_blank in graph.sub_blanks(blank=blank, operation=content)
-        ]
-        return ast.Call(func=ast.Name(content.name), args=args_asts, keywords=[])

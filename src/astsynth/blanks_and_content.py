@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 import inspect
 from typing import Any, Callable, Optional, Type, Union
+from typing_extensions import Self
 
 
 class VariableKind(Enum):
@@ -50,7 +51,7 @@ class Operation:
         return hash("Operation|" + self.name)
 
     @classmethod
-    def from_func(cls, func: Callable[..., Any]):
+    def from_func(cls, func: Callable[..., Any]) -> Self:
         argspec = inspect.getfullargspec(func)
         for spec_name in argspec.args + ["return"]:
             if spec_name not in argspec.annotations:

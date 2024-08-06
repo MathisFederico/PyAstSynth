@@ -7,7 +7,7 @@ from astsynth.generator import ProgramGenerator
 
 class TestGeneration:
     @pytest.fixture(autouse=True)
-    def setup(self, generation_fixture: "CodeGenerationFixture"):
+    def setup(self, generation_fixture: "CodeGenerationFixture") -> None:
         self.fixture = generation_fixture
 
     def test_return_variable(self):
@@ -20,26 +20,18 @@ class TestGeneration:
             )
         )
         self.fixture.when_enumerating_generation()
+
+        common_code = [
+            'A = "a constant string"',
+            "N = 42",
+            "",
+            "def generated_func(number: int, desc: str):",
+        ]
+
         self.fixture.then_generated_functions_asts_should_be(
             [
-                function_ast_from_source_lines(
-                    [
-                        'A = "a constant string"',
-                        "N = 42",
-                        "",
-                        "def generated_func(number: int, desc: str):",
-                        "    return number",
-                    ]
-                ),
-                function_ast_from_source_lines(
-                    [
-                        'A = "a constant string"',
-                        "N = 42",
-                        "",
-                        "def generated_func(number: int, desc: str):",
-                        "    return N",
-                    ]
-                ),
+                function_ast_from_source_lines(common_code + ["    return number"]),
+                function_ast_from_source_lines(common_code + ["    return N"]),
             ]
         )
 
@@ -91,6 +83,46 @@ class TestGeneration:
             ]
         )
 
+    def test_depth_makes_intermediate_variables(self):
+        def add_one(number: int) -> int:
+            return number + 1
+
+        self.fixture.given_code_generator(
+            ProgramGenerator(
+                inputs={"number": int},
+                operations=[add_one],
+                output_type=int,
+            )
+        )
+        self.fixture.when_enumerating_generation(max_depth=3)
+        common_code = [
+            "def generated_func(number: int):",
+        ]
+
+        self.fixture.then_generated_functions_asts_should_be(
+            [
+                function_ast_from_source_lines(common_code + ["    return number"]),
+                function_ast_from_source_lines(
+                    common_code + ["    return add_one(number)"]
+                ),
+                function_ast_from_source_lines(
+                    common_code
+                    + [
+                        "    x0 = add_one(number)",
+                        "    return add_one(x0)",
+                    ]
+                ),
+                function_ast_from_source_lines(
+                    common_code
+                    + [
+                        "    x1 = add_one(number)",
+                        "    x0 = add_one(x1)",
+                        "    return add_one(x0)",
+                    ]
+                ),
+            ]
+        )
+
 
 def function_ast_from_source_lines(source_lines: list[str]) -> ast.Module:
     return ast.parse("\n".join(source_lines))
@@ -104,17 +136,19 @@ def generation_fixture() -> "CodeGenerationFixture":
 class CodeGenerationFixture:
     def __init__(self) -> None:
         self.generator = ProgramGenerator()
-        self.generated_codes: list[str] = []
+        self.generated_codes: list[ast.Module] = []
 
-    def given_code_generator(self, generator: ProgramGenerator):
+    def given_code_generator(self, generator: ProgramGenerator) -> None:
         self.generator = generator
 
-    def when_enumerating_generation(self):
-        for program_tree in self.generator.enumerate():
+    def when_enumerating_generation(self, **kwargs):
+        for program_tree in self.generator.enumerate(**kwargs):
             astor.to_source(program_tree)
             self.generated_codes.append(program_tree)
 
-    def then_generated_functions_asts_should_be(self, expected_functions: set[str]):
+    def then_generated_functions_asts_should_be(
+        self, expected_functions: list[ast.Module]
+    ) -> None:
         generated = _to_source_list(self.generated_codes)
         expected = _to_source_list(expected_functions)
         assert generated == expected
