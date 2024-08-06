@@ -50,6 +50,15 @@ class Operation:
     def __hash__(self) -> int:
         return hash("Operation|" + self.name)
 
+    def as_source(self) -> str:
+        lines = inspect.getsourcelines(self.func)[0]
+        indent = 0
+        for char in lines[0]:
+            if char != " ":
+                break
+            indent += 1
+        return "".join([line[indent:] for line in lines])
+
     @classmethod
     def from_func(cls, func: Callable[..., Any]) -> Self:
         argspec = inspect.getfullargspec(func)

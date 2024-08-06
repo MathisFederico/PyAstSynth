@@ -24,36 +24,38 @@ class ProgramGenerator:
         output_type: Type[object] = object,
         brancher: BFSHBrancher = BFSHBrancher(),
     ) -> None:
-        self.variables = {}
-
+        self.variables: list[Variable] = []
         if inputs is None:
             inputs = {}
         for name, var_type in inputs.items():
-            self.variables[name] = Variable(
-                name=name, type=var_type, kind=VariableKind.INPUT
+            self.variables.append(
+                Variable(name=name, type=var_type, kind=VariableKind.INPUT)
             )
-
         if allowed_constants is None:
             allowed_constants = {}
         for name, value in allowed_constants.items():
-            self.variables[name] = Variable(
-                name=name, value=value, type=type(value), kind=VariableKind.CONSTANT
+            self.variables.append(
+                Variable(
+                    name=name, value=value, type=type(value), kind=VariableKind.CONSTANT
+                )
             )
 
-        self.operations = {}
+        self.operations: list[Operation] = []
         if operations is None:
             operations = []
         for op_func in operations:
             operation = Operation.from_func(op_func)
-            self.operations[operation.name] = operation
+            self.operations.append(operation)
 
         self.output_type = output_type
         self.brancher = brancher
-        self.candidates = list(self.variables.values()) + list(self.operations.values())
+        self.candidates = self.variables + self.operations
 
     def enumerate(self, max_depth: int = 1) -> Generator[ast.Module, None, None]:
         graph = ProgramGraph(output_type=self.output_type)
-        program = ProgramWritter(variables=self.variables, program_graph=graph)
+        program = ProgramWritter(
+            variables=self.variables, operations=self.operations, program_graph=graph
+        )
 
         blanks_candidates: OrderedDict[Blank, list[BlankContent]] = OrderedDict()
         root_candidates = list(

@@ -4,6 +4,8 @@ import pytest
 
 from astsynth.generator import ProgramGenerator
 
+from tests.conftest import function_ast_from_source_lines, to_source_list
+
 
 class TestGeneration:
     @pytest.fixture(autouse=True)
@@ -20,18 +22,22 @@ class TestGeneration:
             )
         )
         self.fixture.when_enumerating_generation()
-
-        common_code = [
-            'A = "a constant string"',
-            "N = 42",
-            "",
-            "def generated_func(number: int, desc: str):",
-        ]
-
         self.fixture.then_generated_functions_asts_should_be(
             [
-                function_ast_from_source_lines(common_code + ["    return number"]),
-                function_ast_from_source_lines(common_code + ["    return N"]),
+                function_ast_from_source_lines(
+                    [
+                        "def generated_func(number: int, desc: str):",
+                        "    return number",
+                    ]
+                ),
+                function_ast_from_source_lines(
+                    [
+                        "N = 42",
+                        "",
+                        "def generated_func(number: int, desc: str):",
+                        "    return N",
+                    ]
+                ),
             ]
         )
 
@@ -51,34 +57,83 @@ class TestGeneration:
             )
         )
         self.fixture.when_enumerating_generation()
-
-        common_code = [
-            'A = "a"',
-            "",
-            "def generated_func(number: int, desc: str):",
-        ]
-
         self.fixture.then_generated_functions_asts_should_be(
             [
-                function_ast_from_source_lines(common_code + ["    return desc"]),
-                function_ast_from_source_lines(common_code + ["    return A"]),
                 function_ast_from_source_lines(
-                    common_code + ["    return concat_strings(desc, desc)"]
+                    [
+                        "def generated_func(number: int, desc: str):",
+                        "    return desc",
+                    ]
                 ),
                 function_ast_from_source_lines(
-                    common_code + ["    return concat_strings(desc, A)"]
+                    [
+                        'A = "a"',
+                        "",
+                        "def generated_func(number: int, desc: str):",
+                        "    return A",
+                    ]
                 ),
                 function_ast_from_source_lines(
-                    common_code + ["    return concat_strings(A, A)"]
+                    [
+                        "def concat_strings(string: str, other_string: str) -> str:",
+                        "   return string + other_string",
+                        "",
+                        "def generated_func(number: int, desc: str):",
+                        "    return concat_strings(desc, desc)",
+                    ]
                 ),
                 function_ast_from_source_lines(
-                    common_code + ["    return concat_strings(A, desc)"]
+                    [
+                        'A = "a"',
+                        "",
+                        "def concat_strings(string: str, other_string: str) -> str:",
+                        "   return string + other_string",
+                        "",
+                        "def generated_func(number: int, desc: str):",
+                        "    return concat_strings(desc, A)",
+                    ]
                 ),
                 function_ast_from_source_lines(
-                    common_code + ["    return repeat(desc, number)"]
+                    [
+                        'A = "a"',
+                        "",
+                        "def concat_strings(string: str, other_string: str) -> str:",
+                        "   return string + other_string",
+                        "",
+                        "def generated_func(number: int, desc: str):",
+                        "    return concat_strings(A, A)",
+                    ]
                 ),
                 function_ast_from_source_lines(
-                    common_code + ["    return repeat(A, number)"]
+                    [
+                        'A = "a"',
+                        "",
+                        "def concat_strings(string: str, other_string: str) -> str:",
+                        "   return string + other_string",
+                        "",
+                        "def generated_func(number: int, desc: str):",
+                        "    return concat_strings(A, desc)",
+                    ]
+                ),
+                function_ast_from_source_lines(
+                    [
+                        "def repeat(string: str, times: int) -> str:",
+                        "   return string * times",
+                        "",
+                        "def generated_func(number: int, desc: str):",
+                        "    return repeat(desc, number)",
+                    ]
+                ),
+                function_ast_from_source_lines(
+                    [
+                        'A = "a"',
+                        "",
+                        "def repeat(string: str, times: int) -> str:",
+                        "   return string * times",
+                        "",
+                        "def generated_func(number: int, desc: str):",
+                        "    return repeat(A, number)",
+                    ]
                 ),
             ]
         )
@@ -95,26 +150,39 @@ class TestGeneration:
             )
         )
         self.fixture.when_enumerating_generation(max_depth=3)
-        common_code = [
-            "def generated_func(number: int):",
-        ]
-
         self.fixture.then_generated_functions_asts_should_be(
             [
-                function_ast_from_source_lines(common_code + ["    return number"]),
                 function_ast_from_source_lines(
-                    common_code + ["    return add_one(number)"]
+                    [
+                        "def generated_func(number: int):",
+                        "    return number",
+                    ]
                 ),
                 function_ast_from_source_lines(
-                    common_code
-                    + [
+                    [
+                        "def add_one(number: int) -> int:",
+                        "   return number + 1",
+                        "",
+                        "def generated_func(number: int):",
+                        "    return add_one(number)",
+                    ]
+                ),
+                function_ast_from_source_lines(
+                    [
+                        "def add_one(number: int) -> int:",
+                        "   return number + 1",
+                        "",
+                        "def generated_func(number: int):",
                         "    x0 = add_one(number)",
                         "    return add_one(x0)",
                     ]
                 ),
                 function_ast_from_source_lines(
-                    common_code
-                    + [
+                    [
+                        "def add_one(number: int) -> int:",
+                        "   return number + 1",
+                        "",
+                        "def generated_func(number: int):",
                         "    x1 = add_one(number)",
                         "    x0 = add_one(x1)",
                         "    return add_one(x0)",
@@ -122,10 +190,6 @@ class TestGeneration:
                 ),
             ]
         )
-
-
-def function_ast_from_source_lines(source_lines: list[str]) -> ast.Module:
-    return ast.parse("\n".join(source_lines))
 
 
 @pytest.fixture
@@ -149,10 +213,6 @@ class CodeGenerationFixture:
     def then_generated_functions_asts_should_be(
         self, expected_functions: list[ast.Module]
     ) -> None:
-        generated = _to_source_list(self.generated_codes)
-        expected = _to_source_list(expected_functions)
+        generated = to_source_list(self.generated_codes)
+        expected = to_source_list(expected_functions)
         assert generated == expected
-
-
-def _to_source_list(asts: list[ast.Module]) -> list[str]:
-    return [astor.to_source(tree) for tree in asts]

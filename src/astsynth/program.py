@@ -92,7 +92,7 @@ class ProgramGraph(DiGraph):
         op_node = self._value_node(blank, operation)
         return list(self.successors(op_node))
 
-    def active(self, node: Blank | BlankContent) -> bool:
+    def active(self, node: Blank | str) -> bool:
         if node == self.root:
             return True
         return any(self.edges[pred, node]["active"] for pred in self.predecessors(node))
@@ -158,43 +158,60 @@ class ProgramWritter:
 
     def __init__(
         self,
-        variables: dict[str, Variable],
+        variables: list[Variable],
+        operations: list[Operation],
         program_graph: ProgramGraph,
     ) -> None:
-        self.constants: list[ast.Assign] = []
+        self.constants: dict[Variable, ast.Assign] = {}
         inputs: dict[str, Variable] = {}
-        for name, variable in variables.items():
+        for variable in variables:
             if not variable.kind == VariableKind.CONSTANT:
-                inputs[name] = variable
+                inputs[variable.name] = variable
                 continue
-            self.constants.append(
-                ast.Assign(targets=[ast.Name(name)], value=ast.Constant(variable.value))
+            self.constants[variable] = ast.Assign(
+                targets=[ast.Name(variable.name)], value=ast.Constant(variable.value)
             )
-
-        def _assign_const_id(assign: ast.Assign) -> str:
-            target_name: ast.Name = assign.targets[0]  # type: ignore
-            return target_name.id
-
-        self.constants.sort(key=_assign_const_id)
 
         self.inputs_arguments = [
             ast.arg(name, annotation=ast.Name(value.type.__name__))
             for name, value in inputs.items()
         ]
 
+        self.operations: dict[Operation, ast.FunctionDef] = {}
+        for op in operations:
+            self.operations[op] = ast.parse(op.as_source()).body[0]  # type: ignore
+
         self.graph = program_graph
 
-    def generate_ast(self):
+    def generate_ast(self) -> ast.Module:
         function_body = self._root_blank_to_ast_body(self.graph.root, self.graph)
 
-        function = ast.FunctionDef(
+        function = ast.FunctionDef(  # type: ignore
             name="generated_func",
             body=function_body,
             decorator_list=[],
-            args=ast.arguments(args=self.inputs_arguments, defaults=[]),
+            args=ast.arguments(args=self.inputs_arguments, defaults=[]),  # type: ignore
         )
 
-        return ast.Module(body=self.constants + [function])
+        active_constants: list[ast.Assign] = []
+        active_ops: list[ast.FunctionDef] = []
+
+        for node, content in self.graph.nodes(data="content"):
+            if not self.graph.active(node):
+                continue
+            if content in self.constants:
+                active_constants.append(self.constants[content])
+            if content in self.operations:
+                active_ops.append(self.operations[content])
+
+        def _assign_const_id(assign: ast.Assign) -> str:
+            target_name: ast.Name = assign.targets[0]  # type: ignore
+            return target_name.id
+
+        active_constants = sorted(list(set(active_constants)), key=_assign_const_id)
+        active_ops = sorted(list(set(active_ops)), key=lambda func_def: func_def.name)
+
+        return ast.Module(body=active_constants + active_ops + [function])  # type: ignore
 
     def _blank_ast_value(
         self, blank: Blank, graph: ProgramGraph, variable_count: int
