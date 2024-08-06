@@ -14,6 +14,7 @@ from astsynth.blanks_and_content import (
     Variable,
     VariableKind,
 )
+from astsynth.namer import DefaultProgramNamer
 
 BlanksConfig = dict[Blank, Optional[BlankContent]]
 
@@ -183,16 +184,7 @@ class ProgramWritter:
 
         self.graph = program_graph
 
-    def generate_ast(self) -> ast.Module:
-        function_body = self._root_blank_to_ast_body(self.graph.root, self.graph)
-
-        function = ast.FunctionDef(  # type: ignore
-            name="generated_func",
-            body=function_body,
-            decorator_list=[],
-            args=ast.arguments(args=self.inputs_arguments, defaults=[]),  # type: ignore
-        )
-
+    def generate_ast(self, program_name: str) -> ast.Module:
         active_constants: list[ast.Assign] = []
         active_ops: list[ast.FunctionDef] = []
 
@@ -211,7 +203,18 @@ class ProgramWritter:
         active_constants = sorted(list(set(active_constants)), key=_assign_const_id)
         active_ops = sorted(list(set(active_ops)), key=lambda func_def: func_def.name)
 
-        return ast.Module(body=active_constants + active_ops + [function])  # type: ignore
+        function_body = self._root_blank_to_ast_body(self.graph.root, self.graph)
+
+        function = ast.FunctionDef(
+            name=program_name,
+            body=function_body,
+            decorator_list=[],
+            args=ast.arguments(args=self.inputs_arguments, defaults=[]),  # type: ignore
+        )
+
+        return ast.Module(
+            body=active_constants + active_ops + [function], type_ignores=[]
+        )
 
     def _blank_ast_value(
         self, blank: Blank, graph: ProgramGraph, variable_count: int
@@ -260,4 +263,5 @@ class ProgramWritter:
         return ast_lines
 
     def __repr__(self) -> str:
-        return to_source(self.generate_ast())
+        program_name = DefaultProgramNamer().name(self.graph)
+        return to_source(self.generate_ast(program_name))

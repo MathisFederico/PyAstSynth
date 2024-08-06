@@ -1,5 +1,6 @@
 import ast
 from collections import OrderedDict
+from dataclasses import dataclass
 from functools import partial
 from typing import Any, Callable, Generator, Iterator, Optional, Type
 
@@ -12,7 +13,14 @@ from astsynth.blanks_and_content import (
     Variable,
     VariableKind,
 )
+from astsynth.namer import DefaultProgramNamer, ProgramNamer
 from astsynth.program import BlanksConfig, ProgramWritter, ProgramGraph
+
+
+@dataclass
+class GeneratedProgram:
+    name: str
+    ast: ast.Module
 
 
 class ProgramGenerator:
@@ -51,11 +59,17 @@ class ProgramGenerator:
         self.brancher = brancher
         self.candidates = self.variables + self.operations
 
-    def enumerate(self, max_depth: int = 1) -> Generator[ast.Module, None, None]:
+    def enumerate(
+        self,
+        max_depth: int = 1,
+        program_namer: Optional[ProgramNamer] = None,
+    ) -> Generator[GeneratedProgram, None, None]:
         graph = ProgramGraph(output_type=self.output_type)
         program = ProgramWritter(
             variables=self.variables, operations=self.operations, program_graph=graph
         )
+        if program_namer is None:
+            program_namer = DefaultProgramNamer()
 
         blanks_candidates: OrderedDict[Blank, list[BlankContent]] = OrderedDict()
         root_candidates = list(
@@ -79,8 +93,11 @@ class ProgramGenerator:
             graph.replace_blank(blank=choosen_blank, content=candidate)
             if graph.complete:
                 complete_config = graph.config()
+                program_name = program_namer.name(graph)
                 used_configs.add(hashable_config(complete_config))
-                yield program.generate_ast()
+                code_ast = program.generate_ast(program_name=program_name)
+                ast.fix_missing_locations(code_ast)
+                yield GeneratedProgram(name=program_name, ast=code_ast)
             blanks_candidates = update_current_candidates(
                 graph=graph,
                 all_candidates=self.candidates,

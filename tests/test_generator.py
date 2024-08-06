@@ -200,19 +200,19 @@ def generation_fixture() -> "CodeGenerationFixture":
 class CodeGenerationFixture:
     def __init__(self) -> None:
         self.generator = ProgramGenerator()
-        self.generated_codes: list[ast.Module] = []
+        self.generated_asts: list[ast.Module] = []
 
     def given_code_generator(self, generator: ProgramGenerator) -> None:
         self.generator = generator
 
     def when_enumerating_generation(self, **kwargs):
-        for program_tree in self.generator.enumerate(**kwargs):
-            astor.to_source(program_tree)
-            self.generated_codes.append(program_tree)
+        for generated_program in self.generator.enumerate(**kwargs):
+            astor.to_source(generated_program.ast)
+            self.generated_asts.append(generated_program.ast)
 
     def then_generated_functions_asts_should_be(
-        self, expected_functions: list[ast.Module]
+        self, expected_asts: list[ast.Module]
     ) -> None:
-        generated = to_source_list(self.generated_codes)
-        expected = to_source_list(expected_functions)
+        generated = to_source_list(self.generated_asts)
+        expected = to_source_list(expected_asts)
         assert generated == expected
