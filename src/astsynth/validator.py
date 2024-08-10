@@ -29,7 +29,7 @@ class ValidationResult:
         self.full_success: bool = all(res.success for res in self.individual_results)
 
 
-class Synthesizer:
+class Validator:
     def __init__(self) -> None:
         self.examples: dict[Any, Example] = {}
 

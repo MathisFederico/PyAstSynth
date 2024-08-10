@@ -4,14 +4,14 @@ import pytest
 
 
 from astsynth.generator import GeneratedProgram
-from astsynth.synthesizer import Synthesizer
+from astsynth.validator import Validator
 from tests.conftest import function_ast_from_source_lines
 
 
 class TestSynthesizer:
     @pytest.fixture(autouse=True)
-    def setup(self, synthesizer_fixture: "SynthesizerFixture") -> None:
-        self.fixture = synthesizer_fixture
+    def setup(self, validation_fixture: "ValidationFixture") -> None:
+        self.fixture = validation_fixture
 
     def test_simple_io_validating(self):
         self.fixture.given_generated_programs(
@@ -85,13 +85,13 @@ class TestSynthesizer:
 
 
 @pytest.fixture
-def synthesizer_fixture() -> "SynthesizerFixture":
-    return SynthesizerFixture()
+def validation_fixture() -> "ValidationFixture":
+    return ValidationFixture()
 
 
-class SynthesizerFixture:
+class ValidationFixture:
     def __init__(self) -> None:
-        self.synthesizer = Synthesizer()
+        self.validator = Validator()
         self.valid_programs: list[GeneratedProgram] = []
         self.generated_programs: list[GeneratedProgram] = []
 
@@ -102,13 +102,13 @@ class SynthesizerFixture:
 
     def given_IO_examples(self, io_examples: list[tuple[Any, Any]]) -> None:
         for input, output in io_examples:
-            self.synthesizer.add_example(input=input, output=output)
+            self.validator.add_example(input=input, output=output)
 
     def when_validating_generated_programs(self, **kwargs: Any) -> None:
         self.valid_programs = [
             program
             for program in self.generated_programs
-            if self.synthesizer.validate_program(program=program).full_success
+            if self.validator.validate_program(program=program).full_success
         ]
 
     def then_valid_programs_names_should_be(self, expected_programs: list[str]) -> None:
