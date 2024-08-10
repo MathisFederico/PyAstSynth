@@ -178,7 +178,7 @@ class ProgramWritter:
 
         self.operations: dict[Operation, ast.FunctionDef] = {}
         for op in operations:
-            self.operations[op] = ast.parse(op.as_source()).body[0]  # type: ignore
+            self.operations[op] = ast.parse(op.source).body[0]  # type: ignore
 
         self.graph = program_graph
 

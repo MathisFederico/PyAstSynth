@@ -53,7 +53,7 @@ class AnnotationMissing(Exception):
 
 class Operation(BaseModel):
     name: str
-    func: Callable[..., Any]
+    source: str
     output_type: Type[Any]
     inputs_types: dict[str, Type[Any]]
 
@@ -63,15 +63,6 @@ class Operation(BaseModel):
 
     def __hash__(self) -> int:
         return hash("Operation|" + self.name)
-
-    def as_source(self) -> str:
-        lines = inspect.getsourcelines(self.func)[0]
-        indent = 0
-        for char in lines[0]:
-            if char != " ":
-                break
-            indent += 1
-        return "".join([line[indent:] for line in lines])
 
     @classmethod
     def from_func(cls, func: Callable[..., Any]) -> Self:
@@ -85,9 +76,11 @@ class Operation(BaseModel):
         input_types = {
             arg_name: argspec.annotations[arg_name] for arg_name in argspec.args
         }
+
+        source = function_source(func)
         return cls(
             name=func.__name__,
-            func=func,
+            source=source,
             output_type=output_type,
             inputs_types=input_types,
         )
@@ -95,3 +88,13 @@ class Operation(BaseModel):
 
 Variable = Union[Input, Constant]
 BlankContent = Union[Variable, Operation]
+
+
+def function_source(func: Callable) -> str:
+    lines = inspect.getsourcelines(func)[0]
+    indent = 0
+    for char in lines[0]:
+        if char != " ":
+            break
+        indent += 1
+    return "".join([line[indent:] for line in lines])
