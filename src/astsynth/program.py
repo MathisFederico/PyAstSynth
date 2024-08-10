@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import ast
 from typing import Any, Optional, Sequence, Type
 from typing_extensions import Self
@@ -7,13 +9,7 @@ from astor import to_source
 from networkx import DiGraph, NodeNotFound, descendants
 
 
-from astsynth.blanks_and_content import (
-    Blank,
-    BlankContent,
-    Operation,
-    Variable,
-    VariableKind,
-)
+from astsynth.blanks_and_content import Blank, BlankContent, Input, Operation, Constant
 from astsynth.namer import DefaultProgramNamer
 
 BlanksConfig = dict[Blank, Optional[BlankContent]]
@@ -33,7 +29,7 @@ class ProgramGraph(DiGraph):
         self.add_node(self.root, depth=0)
 
     def fill_blank(self, blank: Blank, content: BlankContent) -> None:
-        if isinstance(content, Variable):
+        if isinstance(content, (Input, Constant)):
             return self._fill_with_variable(blank, content)
         if isinstance(content, Operation):
             return self._fill_with_operation(blank, content)
@@ -45,7 +41,7 @@ class ProgramGraph(DiGraph):
             raise NodeNotFound("Could not find blank with id: %s", blank_id)
         return blanks_with_id[0]
 
-    def _fill_with_variable(self, blank: Blank, variable: Variable) -> None:
+    def _fill_with_variable(self, blank: Blank, variable: Input | Constant) -> None:
         var_node = self._value_node(blank, variable)
         self.add_node(var_node, content=variable)
         self.add_edge(blank, var_node, active=True)
@@ -159,23 +155,25 @@ class ProgramWritter:
 
     def __init__(
         self,
-        variables: list[Variable],
+        inputs: list[Input],
+        constants: list[Constant],
         operations: list[Operation],
         program_graph: ProgramGraph,
     ) -> None:
-        self.constants: dict[Variable, ast.Assign] = {}
-        inputs: dict[str, Variable] = {}
-        for variable in variables:
-            if not variable.kind == VariableKind.CONSTANT:
-                inputs[variable.name] = variable
-                continue
-            self.constants[variable] = ast.Assign(
-                targets=[ast.Name(variable.name)], value=ast.Constant(variable.value)
+        self.constants: dict[Constant, ast.Assign] = {}
+        self.inputs: dict[str, Input] = {}
+        for constant in constants:
+            self.constants[constant] = ast.Assign(
+                targets=[ast.Name(constant.name)],
+                value=ast.Constant(constant.value),
             )
 
+        for input_var in inputs:
+            self.inputs[input_var.name] = input_var
+            continue
         self.inputs_arguments = [
             ast.arg(name, annotation=ast.Name(value.type.__name__))
-            for name, value in inputs.items()
+            for name, value in self.inputs.items()
         ]
 
         self.operations: dict[Operation, ast.FunctionDef] = {}
@@ -193,7 +191,7 @@ class ProgramWritter:
                 continue
             if content in self.constants:
                 active_constants.append(self.constants[content])
-            if content in self.operations:
+            elif content in self.operations:
                 active_ops.append(self.operations[content])
 
         def _assign_const_id(assign: ast.Assign) -> str:
@@ -221,21 +219,24 @@ class ProgramWritter:
     ) -> tuple[ast.Name | ast.Call, list[tuple[str, Blank]], int]:
         content = graph.content(blank)
         missing_variables = []
-        if isinstance(content, Variable):
+        if isinstance(content, (Input, Constant)):
             ast_value: ast.Name | ast.Call = ast.Name(content.name)
         if isinstance(content, Operation):
             args_asts: list[ast.expr] = []
             for op_blank in graph.sub_blanks(blank=blank, operation=content):
                 op_blank_content = graph.content(op_blank)
 
-                if isinstance(op_blank_content, Variable):
+                if isinstance(op_blank_content, (Input, Constant)):
                     args_asts.append(ast.Name(op_blank_content.name))
 
-                if isinstance(op_blank_content, Operation):
+                elif isinstance(op_blank_content, Operation):
                     variable_name = f"x{variable_count}"
                     args_asts.append(ast.Name(variable_name))
                     missing_variables.append((variable_name, op_blank))
                     variable_count += 1
+                else:
+                    raise NotImplementedError
+
             ast_value = ast.Call(
                 func=ast.Name(content.name), args=args_asts, keywords=[]
             )

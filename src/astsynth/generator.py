@@ -2,17 +2,12 @@ import ast
 from collections import OrderedDict
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, Callable, Generator, Iterator, Optional, Type
+from typing import Generator, Iterator, Optional, Type
 
 
 from astsynth.brancher import BFSHBrancher
-from astsynth.blanks_and_content import (
-    Blank,
-    BlankContent,
-    Operation,
-    Variable,
-    VariableKind,
-)
+from astsynth.blanks_and_content import Blank, BlankContent, Input, Operation, Constant
+from astsynth.dsl import DomainSpecificLanguage
 from astsynth.namer import DefaultProgramNamer, ProgramNamer
 from astsynth.program import BlanksConfig, ProgramWritter, ProgramGraph
 
@@ -26,38 +21,16 @@ class GeneratedProgram:
 class ProgramGenerator:
     def __init__(
         self,
-        inputs: Optional[dict[str, Type[Any]]] = None,
-        allowed_constants: Optional[dict[str, Any]] = None,
-        operations: Optional[list[Callable[..., Any]]] = None,
+        dsl: DomainSpecificLanguage,
         output_type: Type[object] = object,
         brancher: BFSHBrancher = BFSHBrancher(),
     ) -> None:
-        self.variables: list[Variable] = []
-        if inputs is None:
-            inputs = {}
-        for name, var_type in inputs.items():
-            self.variables.append(
-                Variable(name=name, type=var_type, kind=VariableKind.INPUT)
-            )
-        if allowed_constants is None:
-            allowed_constants = {}
-        for name, value in allowed_constants.items():
-            self.variables.append(
-                Variable(
-                    name=name, value=value, type=type(value), kind=VariableKind.CONSTANT
-                )
-            )
-
-        self.operations: list[Operation] = []
-        if operations is None:
-            operations = []
-        for op_func in operations:
-            operation = Operation.from_func(op_func)
-            self.operations.append(operation)
-
         self.output_type = output_type
         self.brancher = brancher
-        self.candidates = self.variables + self.operations
+        self.dsl = dsl
+        self.candidates = (
+            list(self.dsl.inputs) + list(self.dsl.constants) + list(self.dsl.operations)
+        )
 
     def enumerate(
         self,
@@ -66,7 +39,10 @@ class ProgramGenerator:
     ) -> Generator[GeneratedProgram, None, None]:
         graph = ProgramGraph(output_type=self.output_type)
         program = ProgramWritter(
-            variables=self.variables, operations=self.operations, program_graph=graph
+            inputs=self.dsl.inputs,
+            constants=self.dsl.constants,
+            operations=self.dsl.operations,
+            program_graph=graph,
         )
         if program_namer is None:
             program_namer = DefaultProgramNamer()
@@ -141,7 +117,7 @@ def update_current_candidates(
 
 
 def candidates(
-    candidates: list[BlankContent] | Iterator[BlankContent],
+    candidates: list[BlankContent],
     blank: Blank,
     graph: ProgramGraph,
     max_depth: int,
@@ -163,7 +139,7 @@ def is_valid_candidate(
 
 
 def match_type(blank: Blank, content: BlankContent) -> bool:
-    if isinstance(content, Variable):
+    if isinstance(content, (Input, Constant)):
         return issubclass(content.type, blank.type)
     if isinstance(content, Operation):
         return issubclass(content.output_type, blank.type)

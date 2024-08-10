@@ -1,17 +1,11 @@
-from dataclasses import dataclass, field
-from enum import Enum
-import inspect
-from typing import Any, Callable, Optional, Type, Union
+from typing import Any, Callable, Generic, Type, TypeVar, Union
 from typing_extensions import Self
+import inspect
+
+from pydantic import BaseModel
 
 
-class VariableKind(Enum):
-    INPUT = "input"
-    CONSTANT = "constant"
-
-
-@dataclass
-class Blank:
+class Blank(BaseModel):
     id: str
     type: Type[object]
 
@@ -22,30 +16,50 @@ class Blank:
         return hash("Blank|" + self.id)
 
 
-@dataclass
-class Variable:
+class Input(BaseModel):
     name: str
-    type: Type[Any] = field(repr=False)
-    kind: VariableKind
-    value: Optional[Any] = field(default=None, repr=False)
+    type: Type[Any]
 
     def __hash__(self) -> int:
-        return hash("Variable|" + self.name)
+        return hash("Input|" + self.name)
+
+    @classmethod
+    def from_dict(cls, variable_data: dict[str, Type[Any]]) -> list[Self]:
+        return [cls(name=name, type=type) for name, type in variable_data.items()]
+
+
+T = TypeVar("T")
+
+
+class Constant(BaseModel, Generic[T]):
+    name: str
+    value: T
+
+    @property
+    def type(self) -> Type[T]:
+        return type(self.value)
+
+    def __hash__(self) -> int:
+        return hash("Constant|" + self.name)
+
+    @classmethod
+    def from_dict(cls, variable_data: dict[str, Any]) -> list[Self]:
+        return [cls(name=name, value=value) for name, value in variable_data.items()]
 
 
 class AnnotationMissing(Exception):
     pass
 
 
-@dataclass
-class Operation:
+class Operation(BaseModel):
     name: str
-    func: Callable[..., Any] = field(repr=False)
-    output_type: Type[Any] = field(repr=False)
-    inputs_types: dict[str, Type[Any]] = field(repr=False)
+    func: Callable[..., Any]
+    output_type: Type[Any]
+    inputs_types: dict[str, Type[Any]]
 
-    def __post_init__(self):
-        self.arity: int = len(self.inputs_types)
+    @property
+    def arity(self) -> int:
+        return len(self.inputs_types)
 
     def __hash__(self) -> int:
         return hash("Operation|" + self.name)
@@ -79,4 +93,5 @@ class Operation:
         )
 
 
+Variable = Union[Input, Constant]
 BlankContent = Union[Variable, Operation]
