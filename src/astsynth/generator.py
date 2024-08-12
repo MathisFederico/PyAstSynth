@@ -1,6 +1,4 @@
-import ast
 from collections import OrderedDict
-from dataclasses import dataclass
 from functools import partial
 from typing import Generator, Iterator, Optional, Type
 
@@ -9,21 +7,17 @@ from astsynth.brancher import BFSHBrancher
 from astsynth.blanks_and_content import Blank, BlankContent, Input, Operation, Constant
 from astsynth.dsl import DomainSpecificLanguage
 from astsynth.namer import DefaultProgramNamer, ProgramNamer
-from astsynth.program import BlanksConfig, ProgramWritter, ProgramGraph
-
-
-@dataclass
-class GeneratedProgram:
-    name: str
-    ast: ast.Module
+from astsynth.program import GeneratedProgram
+from astsynth.program.graph import BlanksConfig, ProgramGraph
+from astsynth.program.writter import graph_to_program
 
 
 class ProgramGenerator:
     def __init__(
         self,
         dsl: DomainSpecificLanguage,
-        output_type: Type[object] = object,
-        brancher: BFSHBrancher = BFSHBrancher(),
+        output_type: Type[object],
+        brancher: BFSHBrancher,
     ) -> None:
         self.output_type = output_type
         self.brancher = brancher
@@ -34,16 +28,11 @@ class ProgramGenerator:
 
     def enumerate(
         self,
-        max_depth: int = 1,
+        max_depth: int,
         program_namer: Optional[ProgramNamer] = None,
     ) -> Generator[GeneratedProgram, None, None]:
         graph = ProgramGraph(output_type=self.output_type)
-        program = ProgramWritter(
-            inputs=self.dsl.inputs,
-            constants=self.dsl.constants,
-            operations=self.dsl.operations,
-            program_graph=graph,
-        )
+
         if program_namer is None:
             program_namer = DefaultProgramNamer()
 
@@ -71,9 +60,9 @@ class ProgramGenerator:
                 complete_config = graph.config()
                 program_name = program_namer.name(graph)
                 used_configs.add(hashable_config(complete_config))
-                code_ast = program.generate_ast(program_name=program_name)
-                ast.fix_missing_locations(code_ast)
-                yield GeneratedProgram(name=program_name, ast=code_ast)
+                yield graph_to_program(
+                    program_name=program_name, graph=graph, dsl=self.dsl
+                )
             blanks_candidates = update_current_candidates(
                 graph=graph,
                 all_candidates=self.candidates,

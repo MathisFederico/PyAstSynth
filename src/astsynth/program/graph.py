@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-import ast
-from typing import Any, Optional, Sequence, Type
-from typing_extensions import Self
+from typing import Any, Optional, Type
 
 
-from astor import to_source
 from networkx import DiGraph, NodeNotFound, descendants
 
 
 from astsynth.blanks_and_content import Blank, BlankContent, Input, Operation, Constant
-from astsynth.namer import DefaultProgramNamer
+
 
 BlanksConfig = dict[Blank, Optional[BlankContent]]
 
@@ -136,133 +133,3 @@ class ProgramGraph(DiGraph):
                 content = self.content(blank)
             filled_blanks_content[blank] = content
         return filled_blanks_content
-
-
-class ProgramGraphBuilder:
-    def __init__(self, output_type: Type[object] = object) -> None:
-        self.graph = ProgramGraph(output_type=output_type)
-
-    def with_filled_blank(self, blank: Blank, content: BlankContent) -> Self:
-        self.graph.replace_blank(blank, content)
-        return self
-
-    def build(self) -> ProgramGraph:
-        return self.graph
-
-
-class ProgramWritter:
-    """Convert a program graph to an abstract syntax tree."""
-
-    def __init__(
-        self,
-        inputs: list[Input],
-        constants: list[Constant],
-        operations: list[Operation],
-        program_graph: ProgramGraph,
-    ) -> None:
-        self.constants: dict[Constant, ast.Assign] = {}
-        self.inputs: dict[str, Input] = {}
-        for constant in constants:
-            self.constants[constant] = ast.Assign(
-                targets=[ast.Name(constant.name)],
-                value=ast.Constant(constant.value),
-            )
-
-        for input_var in inputs:
-            self.inputs[input_var.name] = input_var
-            continue
-        self.inputs_arguments = [
-            ast.arg(name, annotation=ast.Name(value.type.__name__))
-            for name, value in self.inputs.items()
-        ]
-
-        self.operations: dict[Operation, ast.FunctionDef] = {}
-        for op in operations:
-            self.operations[op] = ast.parse(op.source).body[0]  # type: ignore
-
-        self.graph = program_graph
-
-    def generate_ast(self, program_name: str) -> ast.Module:
-        active_constants: list[ast.Assign] = []
-        active_ops: list[ast.FunctionDef] = []
-
-        for node, content in self.graph.nodes(data="content"):
-            if not self.graph.active(node):
-                continue
-            if content in self.constants:
-                active_constants.append(self.constants[content])
-            elif content in self.operations:
-                active_ops.append(self.operations[content])
-
-        def _assign_const_id(assign: ast.Assign) -> str:
-            target_name: ast.Name = assign.targets[0]  # type: ignore
-            return target_name.id
-
-        active_constants = sorted(list(set(active_constants)), key=_assign_const_id)
-        active_ops = sorted(list(set(active_ops)), key=lambda func_def: func_def.name)
-
-        function_body = self._root_blank_to_ast_body(self.graph.root, self.graph)
-
-        function = ast.FunctionDef(
-            name=program_name,
-            body=function_body,
-            decorator_list=[],
-            args=ast.arguments(args=self.inputs_arguments, defaults=[]),  # type: ignore
-        )
-
-        return ast.Module(
-            body=active_constants + active_ops + [function], type_ignores=[]
-        )
-
-    def _blank_ast_value(
-        self, blank: Blank, graph: ProgramGraph, variable_count: int
-    ) -> tuple[ast.Name | ast.Call, list[tuple[str, Blank]], int]:
-        content = graph.content(blank)
-        missing_variables = []
-        if isinstance(content, (Input, Constant)):
-            ast_value: ast.Name | ast.Call = ast.Name(content.name)
-        if isinstance(content, Operation):
-            args_asts: list[ast.expr] = []
-            for op_blank in graph.sub_blanks(blank=blank, operation=content):
-                op_blank_content = graph.content(op_blank)
-
-                if isinstance(op_blank_content, (Input, Constant)):
-                    args_asts.append(ast.Name(op_blank_content.name))
-
-                elif isinstance(op_blank_content, Operation):
-                    variable_name = f"x{variable_count}"
-                    args_asts.append(ast.Name(variable_name))
-                    missing_variables.append((variable_name, op_blank))
-                    variable_count += 1
-                else:
-                    raise NotImplementedError
-
-            ast_value = ast.Call(
-                func=ast.Name(content.name), args=args_asts, keywords=[]
-            )
-        return ast_value, missing_variables, variable_count
-
-    def _root_blank_to_ast_body(
-        self,
-        blank: Blank,
-        graph: ProgramGraph,
-    ) -> Sequence[ast.Return | ast.Assign]:
-        ast_value, missing_variables, variables_count = self._blank_ast_value(
-            blank, graph, 0
-        )
-        ast_lines: list[ast.Return | ast.Assign] = [ast.Return(ast_value)]
-
-        while missing_variables:
-            var_name, blank = missing_variables.pop(0)
-            ast_value, missing_variables, variables_count = self._blank_ast_value(
-                blank, graph, variables_count
-            )
-            ast_lines.insert(
-                0, ast.Assign(targets=[ast.Name(var_name)], value=ast_value)
-            )
-
-        return ast_lines
-
-    def __repr__(self) -> str:
-        program_name = DefaultProgramNamer().name(self.graph)
-        return to_source(self.generate_ast(program_name))

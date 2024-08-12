@@ -1,7 +1,9 @@
+from typing import Type
+from typing_extensions import Self
 import pytest
 
 from astsynth.blanks_and_content import Blank, BlankContent, Input, Operation
-from astsynth.program import ProgramGraph, ProgramGraphBuilder
+from astsynth.program.graph import ProgramGraph
 
 
 class TestProgramGraph:
@@ -102,3 +104,15 @@ class ProgramGraphFixture:
 
     def then_empty_blanks_should_be(self, expected_empty_blanks: set[Blank]) -> None:
         assert set(self.graph.empty_blanks) == expected_empty_blanks
+
+
+class ProgramGraphBuilder:
+    def __init__(self, output_type: Type[object] = object) -> None:
+        self.graph = ProgramGraph(output_type=output_type)
+
+    def with_filled_blank(self, blank: Blank, content: BlankContent) -> Self:
+        self.graph.replace_blank(blank, content)
+        return self
+
+    def build(self) -> ProgramGraph:
+        return self.graph

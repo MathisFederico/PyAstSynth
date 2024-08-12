@@ -1,9 +1,9 @@
 import ast
 from typing import Any, Callable, Type
-import astor
 import pytest
 
 from astsynth.blanks_and_content import Input, Operation, Constant
+from astsynth.brancher import BFSHBrancher
 from astsynth.dsl import DomainSpecificLanguage
 from astsynth.generator import ProgramGenerator
 
@@ -20,7 +20,7 @@ class TestGeneration:
         self.fixture.given_program_inputs({"number": int, "desc": str})
         self.fixture.given_program_constants({"N": 42, "A": "a constant string"})
         self.fixture.given_output_type(int)
-        self.fixture.when_enumerating_generation()
+        self.fixture.when_enumerating_generation(max_depth=1)
         self.fixture.then_generated_functions_asts_should_be(
             [
                 function_ast_from_source_lines(
@@ -52,7 +52,7 @@ class TestGeneration:
         self.fixture.given_program_operations([concat_strings, repeat])
         self.fixture.given_output_type(str)
 
-        self.fixture.when_enumerating_generation()
+        self.fixture.when_enumerating_generation(max_depth=1)
         self.fixture.then_generated_functions_asts_should_be(
             [
                 function_ast_from_source_lines(
@@ -215,10 +215,11 @@ class CodeGenerationFixture:
             constants=Constant.from_dict(self.constants),
             operations=[Operation.from_func(op) for op in self.operations],
         )
-        generator = ProgramGenerator(dsl=dsl, output_type=self.output_type)
+        generator = ProgramGenerator(
+            dsl=dsl, output_type=self.output_type, brancher=BFSHBrancher()
+        )
         for generated_program in generator.enumerate(**kwargs):
-            astor.to_source(generated_program.ast)
-            self.generated_asts.append(generated_program.ast)
+            self.generated_asts.append(ast.parse(generated_program.source))
 
     def then_generated_functions_asts_should_be(
         self, expected_asts: list[ast.Module]

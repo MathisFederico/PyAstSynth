@@ -1,11 +1,11 @@
-from typing import Any
+from typing import Any, Optional
 
 import pytest
 
 
-from astsynth.generator import GeneratedProgram
-from astsynth.validator import Validator
-from tests.conftest import function_ast_from_source_lines
+from astsynth.program import GeneratedProgram
+from astsynth.task import Task
+from astsynth.program.validate import validate_program_on_task
 
 
 class TestSynthesizer:
@@ -18,7 +18,7 @@ class TestSynthesizer:
             [
                 GeneratedProgram(
                     name="prog_2",
-                    ast=function_ast_from_source_lines(
+                    source="\n".join(
                         [
                             "TWO = 2",
                             "",
@@ -29,7 +29,7 @@ class TestSynthesizer:
                 ),
                 GeneratedProgram(
                     name="prog_2p3",
-                    ast=function_ast_from_source_lines(
+                    source="\n".join(
                         [
                             "TWO = 2",
                             "THREE = 3",
@@ -44,7 +44,7 @@ class TestSynthesizer:
                 ),
                 GeneratedProgram(
                     name="prog_3txp2",
-                    ast=function_ast_from_source_lines(
+                    source="\n".join(
                         [
                             "TWO = 2",
                             "THREE = 3",
@@ -63,7 +63,7 @@ class TestSynthesizer:
                 ),
                 GeneratedProgram(
                     name="prog_xpxpxp2",
-                    ast=function_ast_from_source_lines(
+                    source="\n".join(
                         [
                             "TWO = 2",
                             "",
@@ -79,7 +79,14 @@ class TestSynthesizer:
                 ),
             ]
         )
-        self.fixture.given_IO_examples([(0, 2), (1, 5), (2, 8), (3, 11)])
+        self.fixture.given_IO_examples(
+            [
+                ({"number": 0}, 2),
+                ({"number": 1}, 5),
+                ({"number": 2}, 8),
+                ({"number": 3}, 11),
+            ]
+        )
         self.fixture.when_validating_generated_programs(max_depth=3)
         self.fixture.then_valid_programs_names_should_be(["prog_3txp2", "prog_xpxpxp2"])
 
@@ -91,24 +98,25 @@ def validation_fixture() -> "ValidationFixture":
 
 class ValidationFixture:
     def __init__(self) -> None:
-        self.validator = Validator()
         self.valid_programs: list[GeneratedProgram] = []
         self.generated_programs: list[GeneratedProgram] = []
+        self.task: Optional[Task] = None
 
     def given_generated_programs(
         self, generated_programs: list[GeneratedProgram]
     ) -> None:
         self.generated_programs = generated_programs
 
-    def given_IO_examples(self, io_examples: list[tuple[Any, Any]]) -> None:
-        for input, output in io_examples:
-            self.validator.add_example(input=input, output=output)
+    def given_IO_examples(self, io_examples: list[tuple[dict[str, Any], Any]]) -> None:
+        self.task = Task.from_tuples(io_examples)
 
     def when_validating_generated_programs(self, **kwargs: Any) -> None:
+        if self.task is None:
+            raise TypeError("Task must be defined first")
         self.valid_programs = [
             program
             for program in self.generated_programs
-            if self.validator.validate_program(program=program).full_success
+            if validate_program_on_task(program=program, task=self.task).full_success
         ]
 
     def then_valid_programs_names_should_be(self, expected_programs: list[str]) -> None:

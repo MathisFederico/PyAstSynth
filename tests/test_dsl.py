@@ -4,7 +4,7 @@ from typing import Any
 import pytest
 
 from astsynth.blanks_and_content import Operation, Constant
-from astsynth.dsl import DomainSpecificLanguage
+from astsynth.dsl import DomainSpecificLanguage, load_symbols_from_python_source
 
 
 class TestDSL:
@@ -66,7 +66,7 @@ class DSLFixture:
     def when_loading_from_python_file(self, file_path: Path) -> None:
         with open(file_path) as pyfile:
             py_src = pyfile.read()
-        self.dsl.load_symbols_from_python_source(py_src)
+        self.dsl.augment(load_symbols_from_python_source(py_src))
 
     def then_constants_should_be(self, expected_constants: dict[str, Any]) -> None:
         assert self.dsl.constants == Constant.from_dict(expected_constants)

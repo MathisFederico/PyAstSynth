@@ -1,7 +1,7 @@
 from typing import Optional, OrderedDict
 
 from astsynth.blanks_and_content import Blank, BlankContent
-from astsynth.program import ProgramGraph
+from astsynth.program.graph import ProgramGraph
 
 
 class BFSHBrancher:
