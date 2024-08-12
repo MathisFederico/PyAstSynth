@@ -3,7 +3,7 @@ from typing import Any, Callable, Type
 import pytest
 
 from astsynth.blanks_and_content import Input, Operation, Constant
-from astsynth.brancher import BFSHBrancher
+from astsynth.agent import TopDownBFS
 from astsynth.dsl import DomainSpecificLanguage
 from astsynth.generator import ProgramGenerator
 
@@ -216,7 +216,7 @@ class CodeGenerationFixture:
             operations=[Operation.from_func(op) for op in self.operations],
         )
         generator = ProgramGenerator(
-            dsl=dsl, output_type=self.output_type, brancher=BFSHBrancher()
+            dsl=dsl, output_type=self.output_type, agent=TopDownBFS()
         )
         for generated_program in generator.enumerate(**kwargs):
             self.generated_asts.append(ast.parse(generated_program.source))

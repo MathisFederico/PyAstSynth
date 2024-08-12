@@ -1,13 +1,29 @@
+from abc import ABC, abstractmethod
 from typing import Optional, OrderedDict
 
 from astsynth.blanks_and_content import Blank, BlankContent
 from astsynth.program.graph import ProgramGraph
 
 
-class BFSHBrancher:
+class SynthesisAgent(ABC):
     """Agent choosing which program blank to fill and with what available content."""
 
-    def choose_blank_candidate(
+    @abstractmethod
+    def act(
+        self, candidates: OrderedDict[Blank, list[BlankContent]], graph: ProgramGraph
+    ) -> tuple[Optional[Blank], Optional[BlankContent]]:
+        """Agent action in the given context."""
+
+
+class TopDownBFS(SynthesisAgent):
+    """Top down enumeration of all programs
+
+    Simply fill all empty blanks then replace then with the first available option,
+    backtracting to the most recent valid program when no more options is avilable.
+
+    """
+
+    def act(
         self, candidates: OrderedDict[Blank, list[BlankContent]], graph: ProgramGraph
     ) -> tuple[Optional[Blank], Optional[BlankContent]]:
         if graph.empty_blanks:

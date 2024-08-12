@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Optional
 
-from astsynth.brancher import BFSHBrancher
+from astsynth.agent import SynthesisAgent, TopDownBFS
 from astsynth.generator import ProgramGenerator
 from astsynth.program import GeneratedProgram
 from astsynth.program.validate import validate_program_on_task
@@ -16,15 +16,15 @@ class Synthesizer:
         self,
         dsl: "DomainSpecificLanguage",
         task: "Task",
-        brancher: Optional[BFSHBrancher] = None,
+        agent: Optional[SynthesisAgent] = None,
     ) -> None:
         self.dsl = dsl
         self.task = task
-        self.brancher = brancher if brancher is not None else BFSHBrancher()
+        self.brancher = agent if agent is not None else TopDownBFS()
 
     def find_valid_programs(self, max_depth: int = 10) -> list[GeneratedProgram]:
         generator = ProgramGenerator(
-            dsl=self.dsl, output_type=self.task.output_type, brancher=self.brancher
+            dsl=self.dsl, output_type=self.task.output_type, agent=self.brancher
         )
 
         valid_programs: list[GeneratedProgram] = []

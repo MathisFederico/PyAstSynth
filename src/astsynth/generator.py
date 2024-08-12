@@ -3,7 +3,7 @@ from functools import partial
 from typing import Generator, Iterator, Optional, Type
 
 
-from astsynth.brancher import BFSHBrancher
+from astsynth.agent import SynthesisAgent
 from astsynth.blanks_and_content import Blank, BlankContent, Input, Operation, Constant
 from astsynth.dsl import DomainSpecificLanguage
 from astsynth.namer import DefaultProgramNamer, ProgramNamer
@@ -17,10 +17,10 @@ class ProgramGenerator:
         self,
         dsl: DomainSpecificLanguage,
         output_type: Type[object],
-        brancher: BFSHBrancher,
+        agent: SynthesisAgent,
     ) -> None:
         self.output_type = output_type
-        self.brancher = brancher
+        self.agent = agent
         self.dsl = dsl
         self.candidates = (
             list(self.dsl.inputs) + list(self.dsl.constants) + list(self.dsl.operations)
@@ -49,9 +49,7 @@ class ProgramGenerator:
         blanks_candidates[graph.root] = root_candidates
         used_configs = set()
         while blanks_candidates:
-            choosen_blank, candidate = self.brancher.choose_blank_candidate(
-                blanks_candidates, graph
-            )
+            choosen_blank, candidate = self.agent.act(blanks_candidates, graph)
             if choosen_blank is None or candidate is None:
                 # Exaustion
                 return
