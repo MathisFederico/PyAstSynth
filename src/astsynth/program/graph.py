@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 from typing import Any, Optional, Type
+from networkx import DiGraph, descendants
 
 
-from networkx import DiGraph, NodeNotFound, descendants
-
-
-from astsynth.blanks_and_content import Blank, BlankContent, Input, Operation, Constant
-
-
-BlanksConfig = dict[Blank, Optional[BlankContent]]
+from astsynth.blanks_and_content import (
+    Blank,
+    BlankContent,
+    BlanksConfig,
+    Input,
+    Operation,
+    Constant,
+    ProgramHash,
+)
 
 
 class ProgramGraph(DiGraph):
@@ -32,76 +35,52 @@ class ProgramGraph(DiGraph):
             return self._fill_with_operation(blank, content)
         raise NotImplementedError()
 
-    def blank_with_id(self, blank_id: str) -> Blank:
-        blanks_with_id = [b for b in self.active_blanks if b.id == blank_id]
-        if not blanks_with_id:
-            raise NodeNotFound("Could not find blank with id: %s", blank_id)
-        return blanks_with_id[0]
+    def empty_blank(self, blank: Blank) -> None:
+        for other_blank in descendants(self, blank):
+            self.remove_node(other_blank)
 
-    def _fill_with_variable(self, blank: Blank, variable: Input | Constant) -> None:
-        var_node = self._value_node(blank, variable)
-        self.add_node(var_node, content=variable)
-        self.add_edge(blank, var_node, active=True)
-
-    def _fill_with_operation(self, blank: Blank, operation: Operation) -> None:
-        op_node = self._value_node(blank, operation)
-        self.add_node(op_node, content=operation)
-        self.add_edge(blank, op_node, active=True)
-        for input_name, input_type in operation.inputs_types.items():
-            new_blank_id = ">".join((blank.id, operation.name, input_name))
-            new_blank = Blank(id=new_blank_id, type=input_type)
-            self.add_node(new_blank, depth=self.nodes[blank]["depth"] + 1)
-            self.add_edge(op_node, new_blank, active=True)
-
-    def _value_node(self, blank: Blank, content: BlankContent) -> str:
-        return blank.id + ">" + content.name
+    def content(self, blank: Blank) -> Optional[BlankContent]:
+        blank_childs: list[BlankContent] = list(self.successors(blank))
+        if not blank_childs:
+            return None
+        assert len(blank_childs) == 1, "Blank should have only one content"
+        leaf_node = blank_childs.pop()
+        return self.nodes[leaf_node]["content"]
 
     def replace_blank(self, blank: Blank, content: BlankContent) -> None:
         if self.content(blank) is not None:
-            self.deactivate_blank(blank)
+            self.empty_blank(blank)
         self.fill_blank(blank, content)
-
-    def deactivate_blank(self, blank: Blank) -> None:
-        self._deactivate_single_node(blank)
-        for other_blank in descendants(self, blank):
-            self._deactivate_single_node(other_blank)
-
-    def _deactivate_single_node(self, node: Blank | str) -> None:
-        for succ in self.successors(node):
-            self.edges[node, succ]["active"] = False
-
-    def content(self, blank: Blank) -> Optional[BlankContent]:
-        blank_active_childs: list[BlankContent] = [
-            child
-            for child in self.successors(blank)
-            if self.edges[blank, child]["active"]
-        ]
-        if not blank_active_childs:
-            return None
-        assert len(blank_active_childs) == 1, "Blank should have only one active child"
-        leaf_node = blank_active_childs.pop()
-        return self.nodes[leaf_node]["content"]
 
     def sub_blanks(self, blank: Blank, operation: Operation) -> list[Blank]:
         op_node = self._value_node(blank, operation)
         return list(self.successors(op_node))
 
-    def active(self, node: Blank | str) -> bool:
-        if node == self.root:
-            return True
-        return any(self.edges[pred, node]["active"] for pred in self.predecessors(node))
+    def _fill_with_variable(self, blank: Blank, variable: Input | Constant) -> None:
+        var_node = self._value_node(blank, variable)
+        self.add_node(var_node, content=variable)
+        self.add_edge(blank, var_node)
+
+    def _fill_with_operation(self, blank: Blank, operation: Operation) -> None:
+        op_node = self._value_node(blank, operation)
+        self.add_node(op_node, content=operation)
+        self.add_edge(blank, op_node)
+        for input_name, input_type in operation.inputs_types.items():
+            new_blank_id = ">".join((blank.id, operation.name, input_name))
+            new_blank = Blank(id=new_blank_id, type=input_type)
+            self.add_node(new_blank, depth=self.nodes[blank]["depth"] + 1)
+            self.add_edge(op_node, new_blank)
+
+    def _value_node(self, blank: Blank, content: BlankContent) -> str:
+        return blank.id + ">" + content.name
 
     @property
-    def active_blanks(self) -> list[Blank]:
-        return [
-            node
-            for node in self.nodes()
-            if isinstance(node, Blank) and self.active(node)
-        ]
+    def blanks(self) -> list[Blank]:
+        return [node for node in self.nodes() if isinstance(node, Blank)]
 
     @property
     def empty_blanks(self) -> list[Blank]:
-        return [blank for blank in self.active_blanks if self.content(blank) is None]
+        return [blank for blank in self.blanks if self.content(blank) is None]
 
     @property
     def complete(self) -> bool:
@@ -124,7 +103,7 @@ class ProgramGraph(DiGraph):
                 ]
             )
 
-        for blank in self.active_blanks:
+        for blank in self.blanks:
             if blank in would_be_disabled_blanks:
                 continue
             if blank in anticipated_content:
@@ -133,3 +112,14 @@ class ProgramGraph(DiGraph):
                 content = self.content(blank)
             filled_blanks_content[blank] = content
         return filled_blanks_content
+
+    @property
+    def hashable_config(self) -> ProgramHash:
+        return hashable_config(self.config())
+
+    def __hash__(self) -> int:
+        return hash(hashable_config(self.config()))
+
+
+def hashable_config(config: BlanksConfig) -> ProgramHash:
+    return tuple([(blank, content) for blank, content in config.items()])

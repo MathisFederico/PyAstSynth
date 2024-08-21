@@ -33,9 +33,7 @@ def graph_to_program(
     active_constants: list[ast.Assign] = []
     active_ops: list[ast.FunctionDef] = []
 
-    for node, content in graph.nodes(data="content"):
-        if not graph.active(node):
-            continue
+    for _node, content in graph.nodes(data="content"):
         if content in constants_ast:
             active_constants.append(constants_ast[content])
         elif content in operations_ast:
@@ -73,9 +71,10 @@ def _root_blank_to_ast_body(
 
     while missing_variables:
         var_name, blank = missing_variables.pop(0)
-        ast_value, missing_variables, variables_count = _blank_ast_value(
+        ast_value, new_missing_variables, variables_count = _blank_ast_value(
             blank, graph, variables_count
         )
+        missing_variables += new_missing_variables
         ast_lines.insert(0, ast.Assign(targets=[ast.Name(var_name)], value=ast_value))
 
     return ast_lines

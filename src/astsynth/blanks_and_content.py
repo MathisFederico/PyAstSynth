@@ -1,4 +1,4 @@
-from typing import Any, Callable, Generic, Type, TypeVar, Union
+from typing import Any, Callable, Generic, Optional, Type, TypeVar, Union
 from typing_extensions import Self
 import inspect
 
@@ -98,3 +98,7 @@ def function_source(func: Callable) -> str:
             break
         indent += 1
     return "".join([line[indent:] for line in lines])
+
+
+ProgramHash = tuple[tuple[Blank, Optional[BlankContent]], ...]
+BlanksConfig = dict[Blank, Optional[BlankContent]]

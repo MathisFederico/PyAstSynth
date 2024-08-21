@@ -3,10 +3,11 @@ from typing import Any, Callable, Type
 import pytest
 
 from astsynth.blanks_and_content import Input, Operation, Constant
-from astsynth.agent import TopDownBFS
+from astsynth.agent import SynthesisAgent, TopDownBFS
 from astsynth.dsl import DomainSpecificLanguage
 from astsynth.generator import ProgramGenerator
 
+from astsynth.program.writter import graph_to_program
 from tests.conftest import function_ast_from_source_lines, to_source_list
 
 
@@ -20,9 +21,12 @@ class TestGeneration:
         self.fixture.given_program_inputs({"number": int, "desc": str})
         self.fixture.given_program_constants({"N": 42, "A": "a constant string"})
         self.fixture.given_output_type(int)
-        self.fixture.when_enumerating_generation(max_depth=1)
+        self.fixture.given_agent(TopDownBFS())
+
+        self.fixture.when_enumerating_generation(max_depth=0)
         self.fixture.then_generated_functions_asts_should_be(
             [
+                # Depth 0
                 function_ast_from_source_lines(
                     [
                         "def generated_func(number: int, desc: str):",
@@ -51,10 +55,12 @@ class TestGeneration:
         self.fixture.given_program_constants({"A": "a"})
         self.fixture.given_program_operations([concat_strings, repeat])
         self.fixture.given_output_type(str)
+        self.fixture.given_agent(TopDownBFS())
 
         self.fixture.when_enumerating_generation(max_depth=1)
         self.fixture.then_generated_functions_asts_should_be(
             [
+                # Depth 1
                 function_ast_from_source_lines(
                     [
                         "def generated_func(number: int, desc: str):",
@@ -69,6 +75,7 @@ class TestGeneration:
                         "    return A",
                     ]
                 ),
+                # Depth 2
                 function_ast_from_source_lines(
                     [
                         "def concat_strings(string: str, other_string: str) -> str:",
@@ -97,7 +104,7 @@ class TestGeneration:
                         "   return string + other_string",
                         "",
                         "def generated_func(number: int, desc: str):",
-                        "    return concat_strings(A, A)",
+                        "    return concat_strings(A, desc)",
                     ]
                 ),
                 function_ast_from_source_lines(
@@ -108,7 +115,7 @@ class TestGeneration:
                         "   return string + other_string",
                         "",
                         "def generated_func(number: int, desc: str):",
-                        "    return concat_strings(A, desc)",
+                        "    return concat_strings(A, A)",
                     ]
                 ),
                 function_ast_from_source_lines(
@@ -141,16 +148,19 @@ class TestGeneration:
         self.fixture.given_program_inputs({"number": int})
         self.fixture.given_program_operations([add_one])
         self.fixture.given_output_type(int)
+        self.fixture.given_agent(TopDownBFS())
 
         self.fixture.when_enumerating_generation(max_depth=3)
         self.fixture.then_generated_functions_asts_should_be(
             [
+                # Depth 0
                 function_ast_from_source_lines(
                     [
                         "def generated_func(number: int):",
                         "    return number",
                     ]
                 ),
+                # Depth 1
                 function_ast_from_source_lines(
                     [
                         "def add_one(number: int) -> int:",
@@ -160,6 +170,74 @@ class TestGeneration:
                         "    return add_one(number)",
                     ]
                 ),
+                # Depth 2
+                function_ast_from_source_lines(
+                    [
+                        "def add_one(number: int) -> int:",
+                        "   return number + 1",
+                        "",
+                        "def generated_func(number: int):",
+                        "    x0 = add_one(number)",
+                        "    return add_one(x0)",
+                    ]
+                ),
+                # Depth 3
+                function_ast_from_source_lines(
+                    [
+                        "def add_one(number: int) -> int:",
+                        "   return number + 1",
+                        "",
+                        "def generated_func(number: int):",
+                        "    x1 = add_one(number)",
+                        "    x0 = add_one(x1)",
+                        "    return add_one(x0)",
+                    ]
+                ),
+            ]
+        )
+
+    def test_bfs_ordering(self):
+        def add_one(number: int) -> int:
+            return number + 1
+
+        def double(number: int) -> int:
+            return 2 * number
+
+        self.fixture.given_program_inputs({"number": int})
+        self.fixture.given_program_operations([add_one, double])
+        self.fixture.given_output_type(int)
+        self.fixture.given_agent(TopDownBFS())
+
+        self.fixture.when_enumerating_generation(max_depth=2)
+        self.fixture.then_generated_functions_asts_should_be(
+            [
+                # depth 0
+                function_ast_from_source_lines(
+                    [
+                        "def generated_func(number: int):",
+                        "    return number",
+                    ]
+                ),
+                # depth 1
+                function_ast_from_source_lines(
+                    [
+                        "def add_one(number: int) -> int:",
+                        "   return number + 1",
+                        "",
+                        "def generated_func(number: int):",
+                        "    return add_one(number)",
+                    ]
+                ),
+                function_ast_from_source_lines(
+                    [
+                        "def double(number: int) -> int:",
+                        "   return 2 * number",
+                        "",
+                        "def generated_func(number: int):",
+                        "    return double(number)",
+                    ]
+                ),
+                # depth 2
                 function_ast_from_source_lines(
                     [
                         "def add_one(number: int) -> int:",
@@ -175,10 +253,35 @@ class TestGeneration:
                         "def add_one(number: int) -> int:",
                         "   return number + 1",
                         "",
+                        "def double(number: int) -> int:",
+                        "   return 2 * number",
+                        "",
                         "def generated_func(number: int):",
-                        "    x1 = add_one(number)",
-                        "    x0 = add_one(x1)",
+                        "    x0 = double(number)",
                         "    return add_one(x0)",
+                    ]
+                ),
+                function_ast_from_source_lines(
+                    [
+                        "def add_one(number: int) -> int:",
+                        "   return number + 1",
+                        "",
+                        "def double(number: int) -> int:",
+                        "   return 2 * number",
+                        "",
+                        "def generated_func(number: int):",
+                        "    x0 = add_one(number)",
+                        "    return double(x0)",
+                    ]
+                ),
+                function_ast_from_source_lines(
+                    [
+                        "def double(number: int) -> int:",
+                        "   return 2 * number",
+                        "",
+                        "def generated_func(number: int):",
+                        "    x0 = double(number)",
+                        "    return double(x0)",
                     ]
                 ),
             ]
@@ -196,6 +299,7 @@ class CodeGenerationFixture:
         self.inputs: dict[str, Type[Any]] = {}
         self.constants: dict[str, Any] = {}
         self.operations: list[Callable[..., Any]] = []
+        self.agent: SynthesisAgent = TopDownBFS()
 
     def given_output_type(self, output_type: Type[object]) -> None:
         self.output_type = output_type
@@ -209,6 +313,9 @@ class CodeGenerationFixture:
     def given_program_operations(self, operations: list[Callable[..., Any]]) -> None:
         self.operations = operations
 
+    def given_agent(self, agent: SynthesisAgent) -> None:
+        self.agent = agent
+
     def when_enumerating_generation(self, **kwargs):
         dsl = DomainSpecificLanguage(
             inputs=Input.from_dict(self.inputs),
@@ -216,9 +323,10 @@ class CodeGenerationFixture:
             operations=[Operation.from_func(op) for op in self.operations],
         )
         generator = ProgramGenerator(
-            dsl=dsl, output_type=self.output_type, agent=TopDownBFS()
+            dsl=dsl, output_type=self.output_type, agent=self.agent
         )
-        for generated_program in generator.enumerate(**kwargs):
+        for program_graph in generator.enumerate(**kwargs):
+            generated_program = graph_to_program(program_graph, "generated_func", dsl)
             self.generated_asts.append(ast.parse(generated_program.source))
 
     def then_generated_functions_asts_should_be(

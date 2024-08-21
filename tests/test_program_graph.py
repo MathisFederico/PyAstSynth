@@ -111,7 +111,7 @@ class ProgramGraphBuilder:
         self.graph = ProgramGraph(output_type=output_type)
 
     def with_filled_blank(self, blank: Blank, content: BlankContent) -> Self:
-        self.graph.replace_blank(blank, content)
+        self.graph.fill_blank(blank, content)
         return self
 
     def build(self) -> ProgramGraph:

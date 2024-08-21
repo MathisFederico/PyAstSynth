@@ -53,9 +53,9 @@ def test_readme_quickstart_example(tmp_path: Path) -> None:
 
     # Synthesize all valid programs:
     synthesizer = Synthesizer(dsl=dsl, task=task)
-    valid_programs = synthesizer.find_valid_programs(max_depth=3)
+    valid_programs = synthesizer.find_valid_programs(max_depth=2)
     print(f"Found {len(valid_programs)}")
-    # assert len(valid_programs) == 2
+    assert len(valid_programs) == 5
 
     # Write down the smallest solution program
     smallest_program = min(valid_programs, key=lambda p: len(p))
