@@ -12,7 +12,7 @@ First define a Domain specific language for your application.
 It can be a simple list of python functions like this:
 
 ```python
-# --> dsl.py
+# --> example_dsl.py
 
 # Define a small DSL
 
@@ -37,16 +37,14 @@ Then use astsynth to find the all valid programs and print the smallest:
 # --> main.py
 
 from pathlib import Path
-
+import time
 from astsynth.synthesizer import Synthesizer
 from astsynth.task import Task
 from astsynth.dsl import load_symbols_from_python_file
 
-DSL_PATH = Path("path/to/dsl.py")
-
 # Initialize the dsl
-dsl = load_symbols_from_python_file(DSL_PATH)
-print(dsl)
+dsl_path = Path("./example_dsl.py")
+dsl = load_symbols_from_python_file(dsl_path)
 
 # Make a task from a few i/o examples
 task = Task.from_tuples(
@@ -59,17 +57,16 @@ task = Task.from_tuples(
 # Augment the dsl with task inputs
 dsl.add_task_inputs(task)
 
-# Show inputs and expected output_type from the task
-print(task)
-
 # Synthesize all valid programs:
 synthesizer = Synthesizer(dsl=dsl, task=task)
-valid_programs = synthesizer.find_valid_programs(max_depth=3)
-print(f"Found {len(valid_programs)}")
+t0 = time.time()
+valid_programs = synthesizer.find_valid_programs(max_depth=2)
+time_taken = time.time() - t0
+print(f"Found {len(valid_programs)} valid programs in {time_taken:.2E}s")
 
 # Write down the smallest solution program
 smallest_program = min(valid_programs, key=lambda p: len(p))
-print(smallest_program.source)
+print(f"\nSmallest program found:\n\n{smallest_program.source}")
 ```
 
 ## Contributing
