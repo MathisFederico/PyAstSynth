@@ -41,7 +41,7 @@ def load_symbols_from_python_source(source: str) -> DomainSpecificLanguage:
     module = ast.parse(source)
     exec(compile(module, filename="<ast>", mode="exec"), locals())
 
-    constants: list[Constant] = []
+    constants: list[Constant[Any]] = []
     operations: list[Operation] = []
 
     for element in module.body:
@@ -50,7 +50,9 @@ def load_symbols_from_python_source(source: str) -> DomainSpecificLanguage:
                 raise NotImplementedError
             const_ast_name: ast.Name = element.targets[0]  # type: ignore
             const_ast_value: ast.Constant = element.value  # type: ignore
-            new_constant = Constant(name=const_ast_name.id, value=const_ast_value.value)
+            new_constant: Constant[Any] = Constant(
+                name=const_ast_name.id, value=const_ast_value.value
+            )
             constants.append(new_constant)
         if isinstance(element, ast.FunctionDef):
             input_types = {}

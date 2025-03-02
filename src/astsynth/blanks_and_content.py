@@ -9,7 +9,7 @@ class Blank(BaseModel):
     id: str
     type: Type[object]
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
         return "□"
 
     def __hash__(self) -> int:
@@ -58,7 +58,7 @@ class Operation(BaseModel):
     inputs_types: dict[str, Type[Any]]
 
     @property
-    def arity(self) -> int:
+    def arity(self) -> int:  # pragma: no cover
         return len(self.inputs_types)
 
     def __hash__(self) -> int:

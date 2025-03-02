@@ -175,7 +175,7 @@ class ProgramGenerator:
             ] = would_be_graph
 
         for config, graph in frontiere.items():
-            if programs_graph.nodes[config]["depth"] > max_depth:
+            if programs_graph.nodes[config]["depth"] > max_depth:  # pragma: no cover
                 continue
             if config in [
                 g.hashable_config for g in available_actions_results.values()

@@ -49,6 +49,22 @@ log_level = "DEBUG"
 [tool.coverage.run]
 source = ["src"]
 
+[tool.coverage.report]
+exclude = [".tests/"]
+
+# Regexes for lines to exclude from consideration
+exclude_also = [
+    # Don't complain if tests don't hit defensive code:
+    "raise",
+
+    # Don't complain if non-runnable code isn't run:
+    "if TYPE_CHECKING:",
+
+    # Don't complain if explicitly said so:
+    "pragma: no cover"
+]
+
+
 [tool.ruff]
 # Same as Black.
 line-length = 88

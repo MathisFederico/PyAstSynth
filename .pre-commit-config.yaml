@@ -21,7 +21,7 @@ repos:
     hooks:
       - id: pytest-check
         name: pytest-check
-        entry: pytest
+        entry: pytest --cov --cov-fail-under=99
         stages: ["push"]
         language: system
         pass_filenames: false

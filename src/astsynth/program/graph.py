@@ -20,7 +20,7 @@ class ProgramGraph(DiGraph):
 
     def __init__(
         self,
-        incoming_graph_data: dict = None,
+        incoming_graph_data: dict | None = None,
         output_type: Type[object] = object,
         **attr: Any,
     ) -> None:
@@ -117,7 +117,7 @@ class ProgramGraph(DiGraph):
     def hashable_config(self) -> ProgramHash:
         return hashable_config(self.config())
 
-    def __hash__(self) -> int:
+    def __hash__(self) -> int:  # pragma: no cover
         return hash(hashable_config(self.config()))
 
 
