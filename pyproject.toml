@@ -5,7 +5,7 @@ requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
 name = "astsynth"
 description = "A library from python program synthesis from restricted abstract syntax trees"
 
-dynamic = ["version", "readme", "dependencies"]
+dynamic = ["version", "readme"]
 license = { text = "GNU General Public License v3 or later (GPLv3+)" }
 requires-python = ">=3.7"
 authors = [
@@ -20,6 +20,11 @@ keywords = [
     "abstract",
     "syntax",
     "tree"
+]
+dependencies = [
+    "astor>=0.8.1",
+    "networkx>=2.6.0",
+    "pydantic>=2.5.0",
 ]
 
 

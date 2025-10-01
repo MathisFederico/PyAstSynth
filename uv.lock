@@ -82,9 +82,9 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "astor" },
-    { name = "networkx" },
-    { name = "pydantic" },
+    { name = "astor", specifier = ">=0.8.1" },
+    { name = "networkx", specifier = ">=2.6.0" },
+    { name = "pydantic", specifier = ">=2.5.0" },
 ]
 
 [package.metadata.requires-dev]
