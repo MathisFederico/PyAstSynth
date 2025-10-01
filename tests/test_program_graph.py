@@ -2,7 +2,7 @@ from typing import Type
 from typing_extensions import Self
 import pytest
 
-from astsynth.blanks_and_content import Blank, BlankContent, Input, Operation
+from astsynth.program.blanks import Blank, BlankContent, Input, Operation
 from astsynth.program.graph import ProgramGraph
 
 

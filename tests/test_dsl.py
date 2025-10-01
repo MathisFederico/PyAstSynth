@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from astsynth.blanks_and_content import Operation, Constant
+from astsynth.program.blanks import Operation, Constant
 from astsynth.dsl import DomainSpecificLanguage, load_symbols_from_python_source
 
 

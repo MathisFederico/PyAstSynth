@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any, Type
 
 from pydantic import BaseModel, Field
 
-from astsynth.blanks_and_content import Input, Operation, Constant
+from astsynth.program.blanks import Input, Operation, Constant
 
 if TYPE_CHECKING:
     from astsynth.task import Task

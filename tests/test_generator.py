@@ -2,7 +2,7 @@ import ast
 from typing import Any, Callable, Type
 import pytest
 
-from astsynth.blanks_and_content import Input, Operation, Constant
+from astsynth.program.blanks import Input, Operation, Constant
 from astsynth.agent import SynthesisAgent, TopDownBFS
 from astsynth.dsl import DomainSpecificLanguage
 from astsynth.generator import ProgramGenerator

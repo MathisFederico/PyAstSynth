@@ -4,7 +4,7 @@ from typing import Any, Optional, Type
 from networkx import DiGraph, descendants
 
 
-from astsynth.blanks_and_content import (
+from astsynth.program.blanks import (
     Blank,
     BlankContent,
     BlanksConfig,

@@ -1,4 +1,4 @@
-from astsynth.blanks_and_content import Blank, Constant, Input, Operation
+from astsynth.program.blanks import Blank, Constant, Input, Operation
 from astsynth.dsl import DomainSpecificLanguage
 from astsynth.program import GeneratedProgram
 from astsynth.program.graph import ProgramGraph

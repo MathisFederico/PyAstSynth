@@ -14,7 +14,7 @@ from astsynth.agent import (
     SynthesisAgent,
     all_const,
 )
-from astsynth.blanks_and_content import (
+from astsynth.program.blanks import (
     Blank,
     BlankContent,
     Input,

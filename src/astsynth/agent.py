@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Optional, Union
 
 from pydantic import BaseModel, ConfigDict
 
-from astsynth.blanks_and_content import (
+from astsynth.program.blanks import (
     Blank,
     BlankContent,
     Constant,
