@@ -56,7 +56,8 @@ def graph_to_program(
     )
 
     module = ast.Module(
-        body=active_constants + active_ops + [function], type_ignores=[]
+        body=active_constants + active_ops + [function],  # pyright: ignore
+        type_ignores=[],
     )
     source = to_source(module)
     return GeneratedProgram(name=program_name, source=source)
@@ -87,7 +88,7 @@ def _blank_ast_value(
     missing_variables = []
     if isinstance(content, (Input, Constant)):
         ast_value: ast.Name | ast.Call = ast.Name(content.name)
-    if isinstance(content, Operation):
+    elif isinstance(content, Operation):
         args_asts: list[ast.expr] = []
         for op_blank in graph.sub_blanks(blank=blank, operation=content):
             op_blank_content = graph.content(op_blank)
@@ -104,4 +105,6 @@ def _blank_ast_value(
                 raise NotImplementedError
 
         ast_value = ast.Call(func=ast.Name(content.name), args=args_asts, keywords=[])
+    else:
+        raise TypeError(f"Unsupported type: {type(content)}")
     return ast_value, missing_variables, variable_count
