@@ -86,30 +86,10 @@ class ProgramGraph(DiGraph):
     def complete(self) -> bool:
         return len(self.empty_blanks) == 0
 
-    def config(
-        self, anticipated_content: Optional[dict[Blank, BlankContent]] = None
-    ) -> BlanksConfig:
-        if anticipated_content is None:
-            anticipated_content = {}
+    def config(self) -> BlanksConfig:
         filled_blanks_content: BlanksConfig = {}
-
-        would_be_disabled_blanks: set[Blank | BlankContent] = set()
-        for changed_blank in anticipated_content:
-            would_be_disabled_blanks = would_be_disabled_blanks.union(
-                [
-                    des
-                    for des in descendants(self, changed_blank)
-                    if isinstance(des, Blank)
-                ]
-            )
-
         for blank in self.blanks:
-            if blank in would_be_disabled_blanks:
-                continue
-            if blank in anticipated_content:
-                content: Optional[BlankContent] = anticipated_content[blank]
-            else:
-                content = self.content(blank)
+            content = self.content(blank)
             filled_blanks_content[blank] = content
         return filled_blanks_content
 
