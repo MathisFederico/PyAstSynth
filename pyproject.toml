@@ -23,7 +23,7 @@ keywords = [
 ]
 
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = ["pytest", "pytest-cov", "pytest-mock", "pre-commit", "ruff", "mypy"]
 
 [project.urls]

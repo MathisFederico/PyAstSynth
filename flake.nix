@@ -44,7 +44,7 @@
               export UV_PYTHON=${python}
               source .venv/bin/activate
 
-              uv sync --extra dev
+              uv sync
               echo "Environment ready"
             '';
           };
