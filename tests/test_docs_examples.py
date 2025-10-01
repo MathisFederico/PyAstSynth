@@ -41,7 +41,6 @@ def test_readme_quickstart_example(tmp_path: Path) -> None:
 
     ### Example code begin
 
-    import time
     from astsynth.synthesizer import Synthesizer
     from astsynth.task import Task
     from astsynth.dsl import load_symbols_from_python_file
@@ -60,16 +59,24 @@ def test_readme_quickstart_example(tmp_path: Path) -> None:
     # Augment the dsl with task inputs
     dsl.add_task_inputs(task)
 
-    # Synthesize all valid programs:
+    # Synthesize all programs that succeeds at the task:
     synthesizer = Synthesizer(dsl=dsl, task=task)
-    t0 = time.time()
-    valid_programs = synthesizer.find_valid_programs(max_depth=2)
-    time_taken = time.time() - t0
-    print(f"Found {len(valid_programs)} valid programs in {time_taken:.2E}s")
-    assert len(valid_programs) == 5
+    synthesis_result = synthesizer.run(max_depth=2)
+    print(
+        f"Found {synthesis_result.stats.n_successful_programs} successful programs"
+        f" over the {synthesis_result.stats.n_generated_programs} generated"
+        f" in {synthesis_result.stats.runtime:.2E}s",
+    )
 
     # Write down the smallest solution program
-    smallest_program = min(valid_programs, key=lambda p: len(p))
+    smallest_program = min(synthesis_result.successful_programs, key=lambda p: len(p))
     print(f"\nSmallest program found:\n\n{smallest_program.source}")
+
+    print("Other successful programs found:")
+    for program in synthesis_result.successful_programs:
+        if program is smallest_program:
+            continue
+        print("-" * 30)
+        print(f"\n{program.source}")
 
     assert smallest_program.source == EXPECTED_SMALLEST_PROGRAM

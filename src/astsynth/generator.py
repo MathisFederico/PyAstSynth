@@ -188,7 +188,7 @@ class ProgramGenerator:
 
 
 class SynthesisError(Exception):
-    """Exception due to invalid program synsthesis configuration"""
+    """Exception due to invalid program synthesis configuration"""
 
 
 def _available_fill_blank_contents(

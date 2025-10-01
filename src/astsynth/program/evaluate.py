@@ -26,7 +26,7 @@ class ValidationResult(BaseModel):
         return all(res.success for res in self.individual_results)
 
 
-def validate_program_on_task(
+def evaluate_program_on_task(
     program: "GeneratedProgram", task: "Task"
 ) -> ValidationResult:
     exec(compile(ast.parse(program.source), filename="<ast>", mode="exec"), locals())
