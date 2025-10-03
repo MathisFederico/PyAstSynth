@@ -136,7 +136,7 @@ def if_sub_blanks(graph: ProgramGraph, blank: Blank) -> IfBlanks:
     content = graph.content(blank)
     if not content or content.kind != "if":
         raise ValueError("Blank was expeted to contain an if branching operation")
-    return graph.nodes[_node_value(blank, content)]["subblanks"]  # type: ignore
+    return graph.nodes[_node_value(blank, content)]["subblanks"]
 
 
 def hashable_config(config: BlanksConfig) -> ProgramHash:

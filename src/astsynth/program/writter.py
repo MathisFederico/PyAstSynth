@@ -80,7 +80,7 @@ def _root_blank_to_ast_body(
             blank, graph, variables_count
         )
         missing_variables += new_missing_variables
-        ast_lines.insert(0, ast.Assign(targets=[ast.Name(var_name)], value=ast_value))  # pyright: ignore
+        ast_lines.insert(0, ast.Assign(targets=[ast.Name(var_name)], value=ast_value))  # type: ignore
 
     return ast_lines
 
@@ -93,7 +93,9 @@ def _blank_ast_value(
         raise TypeError("Cannot represent the ast value of an empty blank")
     missing_variables = []
 
-    def _refer_to_subblank_variable_name(subblank: Blank, subcontent: BlankContent):
+    def _refer_to_subblank_variable_name(
+        subblank: Blank, subcontent: BlankContent
+    ) -> str:
         match subcontent.kind:
             case "input" | "constant":
                 return subcontent.name
@@ -153,6 +155,6 @@ def _blank_ast_value(
                     )
                 ],
             )
-        case _:
+        case _:  # pragma: no cover
             raise TypeError(f"Unsupported type: {type(content)}")
     return ast_value, missing_variables, variable_count + len(missing_variables)

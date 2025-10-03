@@ -179,9 +179,9 @@ class ProgramGenerator:
             if programs_graph.nodes[would_be_config]["explored"]:
                 continue
 
-            available_actions_results[FillBlanks(blanks_contents=blanks_contents)] = (
-                would_be_graph
-            )
+            available_actions_results[
+                FillBlanks(blanks_contents=blanks_contents)
+            ] = would_be_graph
 
         for config, graph in frontiere.items():
             if programs_graph.nodes[config]["depth"] > max_depth:  # pragma: no cover
