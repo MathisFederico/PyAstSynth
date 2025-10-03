@@ -64,7 +64,7 @@ class TopDownBFS(SynthesisAgent):
 
         fill_blanks_with_variable: list[FillBlanks] = []
         for action in fill_blanks:
-            if all_const(action):
+            if all_constants(action):
                 fill_blanks_with_variable.append(action)
 
         if fill_blanks_with_variable:
@@ -79,7 +79,7 @@ class TopDownBFS(SynthesisAgent):
                 if (
                     action != fill_blank_action
                     and other_blanks == current_blanks
-                    and all_const(action)
+                    and all_constants(action)
                 ):
                     other_blanks_constants.append(action)
 
@@ -98,6 +98,10 @@ class TopDownBFS(SynthesisAgent):
                 self.blanks_with_other_constants.remove(empty_blank_action.blanks)
                 return empty_blank_action
 
+        if fill_blanks:
+            self.blanks_with_other_constants = set()
+            return fill_blanks[0]
+
         available_frontiere = [
             action for action in candidates if isinstance(action, JumpToFrontiere)
         ]
@@ -115,7 +119,7 @@ class TopDownBFS(SynthesisAgent):
         return stop
 
 
-def all_const(action: FillBlanks) -> bool:
+def all_constants(action: FillBlanks) -> bool:
     return all(
         isinstance(content, (Input, Constant))
         for _blank, content in action.blanks_contents

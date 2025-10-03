@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Optional, Type
+from typing import Any, NamedTuple, Optional, Type
 from networkx import DiGraph, descendants
 
 
@@ -8,6 +8,7 @@ from astsynth.program.blanks import (
     Blank,
     BlankContent,
     BlanksConfig,
+    IfBranching,
     Input,
     Operation,
     Constant,
@@ -29,10 +30,13 @@ class ProgramGraph(DiGraph):
         self.add_node(self.root, depth=0)
 
     def fill_blank(self, blank: Blank, content: BlankContent) -> None:
-        if isinstance(content, (Input, Constant)):
-            return self._fill_with_variable(blank, content)
-        if isinstance(content, Operation):
-            return self._fill_with_operation(blank, content)
+        match content.kind:
+            case "input" | "constant":
+                return self._fill_with_variable(blank, content)
+            case "operation":
+                return self._fill_with_operation(blank, content)
+            case "if":
+                return self._fill_with_if(blank, content)
         raise NotImplementedError()
 
     def empty_blank(self, blank: Blank) -> None:
@@ -52,27 +56,48 @@ class ProgramGraph(DiGraph):
             self.empty_blank(blank)
         self.fill_blank(blank, content)
 
-    def sub_blanks(self, blank: Blank, operation: Operation) -> list[Blank]:
-        op_node = self._value_node(blank, operation)
+    def sub_blanks(
+        self, blank: Blank, operation: Operation | IfBranching
+    ) -> list[Blank]:
+        op_node = _node_value(blank, operation)
         return list(self.successors(op_node))
 
     def _fill_with_variable(self, blank: Blank, variable: Input | Constant) -> None:
-        var_node = self._value_node(blank, variable)
+        var_node = _node_value(blank, variable)
         self.add_node(var_node, content=variable)
         self.add_edge(blank, var_node)
 
     def _fill_with_operation(self, blank: Blank, operation: Operation) -> None:
-        op_node = self._value_node(blank, operation)
+        op_node = _node_value(blank, operation)
         self.add_node(op_node, content=operation)
         self.add_edge(blank, op_node)
+        new_depth = self.nodes[blank]["depth"] + 1
         for input_name, input_type in operation.inputs_types.items():
-            new_blank_id = ">".join((blank.id, operation.name, input_name))
-            new_blank = Blank(id=new_blank_id, type=input_type)
-            self.add_node(new_blank, depth=self.nodes[blank]["depth"] + 1)
+            new_blank = Blank(id=f"{op_node}>{input_name}", type=input_type)
+            self.add_node(new_blank, depth=new_depth)
             self.add_edge(op_node, new_blank)
 
-    def _value_node(self, blank: Blank, content: BlankContent) -> str:
-        return blank.id + ">" + content.name
+    def _fill_with_if(self, blank: Blank, ifbranching: IfBranching) -> None:
+        if_node = _node_value(blank, ifbranching)
+
+        if_sub_blanks = IfBlanks(
+            test_expression=Blank(id=f"{if_node}>test", type=bool),
+            body=Blank(id=f"{if_node}>body", type=blank.type),
+            else_case=Blank(id=f"{if_node}>else", type=blank.type),
+        )
+
+        self.add_node(if_node, content=ifbranching, subblanks=if_sub_blanks)
+        self.add_edge(blank, if_node)
+        new_depth = self.nodes[blank]["depth"] + 1
+
+        self.add_node(if_sub_blanks.test_expression, depth=new_depth)
+        self.add_edge(if_node, if_sub_blanks.test_expression)
+
+        self.add_node(if_sub_blanks.body, depth=new_depth)
+        self.add_edge(if_node, if_sub_blanks.body)
+
+        self.add_node(if_sub_blanks.else_case, depth=new_depth)
+        self.add_edge(if_node, if_sub_blanks.else_case)
 
     @property
     def blanks(self) -> list[Blank]:
@@ -101,5 +126,27 @@ class ProgramGraph(DiGraph):
         return hash(hashable_config(self.config()))
 
 
+class IfBlanks(NamedTuple):
+    test_expression: Blank
+    body: Blank
+    else_case: Blank
+
+
+def if_sub_blanks(graph: ProgramGraph, blank: Blank) -> IfBlanks:
+    content = graph.content(blank)
+    if not content or content.kind != "if":
+        raise ValueError("Blank was expeted to contain an if branching operation")
+    return graph.nodes[_node_value(blank, content)]["subblanks"]  # type: ignore
+
+
 def hashable_config(config: BlanksConfig) -> ProgramHash:
     return tuple([(blank, content) for blank, content in config.items()])
+
+
+def _node_value(blank: Blank, content: BlankContent) -> str:
+    match content.kind:
+        case "if":
+            return blank.id + ">" + "if"
+        case "input" | "constant" | "operation":
+            return blank.id + ">" + content.name
+    raise NotImplementedError()

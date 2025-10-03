@@ -1,6 +1,6 @@
 from copy import deepcopy
 import itertools
-from typing import Generator, Type
+from typing import Generator, Sequence, Type
 
 from networkx import DiGraph
 
@@ -12,15 +12,13 @@ from astsynth.agent import (
     FillBlanks,
     Stop,
     SynthesisAgent,
-    all_const,
+    all_constants,
 )
 from astsynth.program.blanks import (
     Blank,
     BlankContent,
-    Input,
-    Operation,
-    Constant,
     ProgramHash,
+    StandardOperation,
 )
 from astsynth.dsl import DomainSpecificLanguage
 from astsynth.program.graph import ProgramGraph
@@ -32,12 +30,19 @@ class ProgramGenerator:
         dsl: DomainSpecificLanguage,
         output_type: Type[object],
         agent: SynthesisAgent,
+        standard_operations: list[StandardOperation] | None = None,
     ) -> None:
         self.output_type = output_type
         self.agent = agent
         self.dsl = dsl
-        non_ops = list(self.dsl.inputs) + list(self.dsl.constants)
-        self.contents = non_ops + list(self.dsl.operations)
+        if standard_operations is None:
+            standard_operations = []
+        self.available_contents = (
+            list(self.dsl.inputs)
+            + list(self.dsl.constants)
+            + list(self.dsl.operations)
+            + standard_operations
+        )
 
     def enumerate(self, max_depth: int) -> Generator[ProgramGraph, None, None]:
         current_graph = ProgramGraph(output_type=self.output_type)
@@ -106,28 +111,32 @@ class ProgramGenerator:
             blank_content = current_graph.content(blank)
             if blank_content is None:
                 fill_blank_options[blank] = _available_fill_blank_contents(
-                    candidate_contents=self.contents, blank=blank, graph=current_graph
+                    candidate_contents=self.available_contents,
+                    blank=blank,
+                    graph=current_graph,
                 )
                 continue
 
-            if isinstance(blank_content, Operation):
-                op_sub_blanks = current_graph.sub_blanks(
-                    blank=blank, operation=blank_content
-                )
-                if not any(
-                    current_graph.content(op_blank) for op_blank in op_sub_blanks
-                ):
+            match blank_content.kind:
+                case "operation" | "if":
+                    op_sub_blanks = current_graph.sub_blanks(
+                        blank=blank, operation=blank_content
+                    )
+                    any_sub_blank_has_content = any(
+                        current_graph.content(op_blank) for op_blank in op_sub_blanks
+                    )
+                    if not any_sub_blank_has_content:
+                        continue
+
+                    action: SynthAction = EmptySubBlanks(
+                        parent_blank=blank,
+                        blanks=tuple(op_sub_blanks),
+                    )
+                    would_be_graph = deepcopy(current_graph)
+                    for op_blank in op_sub_blanks:
+                        would_be_graph.empty_blank(blank=op_blank)
+                    available_actions_results[action] = would_be_graph
                     continue
-
-                action: SynthAction = EmptySubBlanks(
-                    parent_blank=blank,
-                    blanks=tuple(op_sub_blanks),
-                )
-                would_be_graph = deepcopy(current_graph)
-                for op_blank in op_sub_blanks:
-                    would_be_graph.empty_blank(blank=op_blank)
-                available_actions_results[action] = would_be_graph
-                continue
 
             if blank.id == "return":
                 empty_return_action: SynthAction = EmptySubBlanks(blanks=(blank,))
@@ -138,7 +147,7 @@ class ProgramGenerator:
 
         for blanks_contents in itertools.product(*fill_blank_options.values()):
             action = FillBlanks(blanks_contents=blanks_contents)
-            depth_increase = 0 if all_const(action) else 1
+            depth_increase = 0 if all_constants(action) else 1
             would_be_graph = deepcopy(current_graph)
             for blank, content in blanks_contents:
                 would_be_graph.fill_blank(blank=blank, content=content)
@@ -170,9 +179,9 @@ class ProgramGenerator:
             if programs_graph.nodes[would_be_config]["explored"]:
                 continue
 
-            available_actions_results[
-                FillBlanks(blanks_contents=blanks_contents)
-            ] = would_be_graph
+            available_actions_results[FillBlanks(blanks_contents=blanks_contents)] = (
+                would_be_graph
+            )
 
         for config, graph in frontiere.items():
             if programs_graph.nodes[config]["depth"] > max_depth:  # pragma: no cover
@@ -192,19 +201,25 @@ class SynthesisError(Exception):
 
 
 def _available_fill_blank_contents(
-    candidate_contents: list[BlankContent], blank: Blank, graph: ProgramGraph
+    candidate_contents: Sequence[BlankContent], blank: Blank, graph: ProgramGraph
 ) -> list[tuple[Blank, BlankContent]]:
     available_actions: list[tuple[Blank, BlankContent]] = []
     for content in candidate_contents:
-        if not _match_type(blank=blank, content=content):
-            continue
+        match content.kind:
+            case "input" | "constant":
+                if not issubclass(content.type, blank.type):
+                    continue
+            case "operation":
+                if not issubclass(content.output_type, blank.type):
+                    continue
+            case "if":
+                # We can always replace a blank by an if branch with the same return type
+                # But we avoid having if branches directly within an if
+                preds = list(graph.predecessors(blank))
+                if len(preds) > 0:
+                    pred_blank = list(graph.predecessors(preds[0]))[0]
+                    pred_content = graph.content(pred_blank)
+                    if pred_content and pred_content.kind == "if":
+                        continue
         available_actions.append((blank, content))
     return available_actions
-
-
-def _match_type(blank: Blank, content: BlankContent) -> bool:
-    if isinstance(content, (Input, Constant)):
-        return issubclass(content.type, blank.type)
-    if isinstance(content, Operation):
-        return issubclass(content.output_type, blank.type)
-    raise NotImplementedError

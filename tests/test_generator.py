@@ -1,8 +1,16 @@
 import ast
+from difflib import Differ
+import json
 from typing import Any, Callable, Type
 import pytest
 
-from astsynth.program.blanks import Input, Operation, Constant
+from astsynth.program.blanks import (
+    IfBranching,
+    Input,
+    Operation,
+    Constant,
+    StandardOperation,
+)
 from astsynth.agent import SynthesisAgent, TopDownBFS
 from astsynth.dsl import DomainSpecificLanguage
 from astsynth.generator import ProgramGenerator
@@ -39,6 +47,65 @@ class TestGeneration:
                         "",
                         "def generated_func(number: int, desc: str):",
                         "    return N",
+                    ]
+                ),
+            ]
+        )
+
+    def test_if_branching(self):
+        """should be able to simply return variables (of the expected type) whether variables are constants or inputs."""
+
+        def is_even(number: int) -> bool:
+            return number % 2 == 0
+
+        self.fixture.given_program_inputs({"number": int})
+        self.fixture.given_program_constants({"EVEN": "even", "ODD": "odd"})
+        self.fixture.given_program_operations([is_even])
+        self.fixture.given_program_standard_operations([IfBranching()])
+        self.fixture.given_output_type(str)
+        self.fixture.given_agent(TopDownBFS())
+
+        self.fixture.when_enumerating_generation(max_depth=2)
+        self.fixture.then_generated_functions_asts_should_be(
+            [
+                # Depth 0
+                function_ast_from_source_lines(
+                    [
+                        'EVEN = "even"',
+                        "",
+                        "def generated_func(number: int):",
+                        "    return EVEN",
+                    ]
+                ),
+                function_ast_from_source_lines(
+                    [
+                        'ODD = "odd"',
+                        "",
+                        "def generated_func(number: int):",
+                        "    return ODD",
+                    ]
+                ),
+                # Depth 2
+                function_ast_from_source_lines(
+                    [
+                        'EVEN = "even"',
+                        'ODD = "odd"',
+                        "",
+                        "def generated_func(number: int):",
+                        "    if is_even(number):",
+                        "        return EVEN",
+                        "    return ODD",
+                    ]
+                ),
+                function_ast_from_source_lines(
+                    [
+                        'EVEN = "even"',
+                        'ODD = "odd"',
+                        "",
+                        "def generated_func(number: int):",
+                        "    if is_even(number):",
+                        "        return ODD",
+                        "    return EVEN",
                     ]
                 ),
             ]
@@ -300,6 +367,7 @@ class CodeGenerationFixture:
         self.constants: dict[str, Any] = {}
         self.operations: list[Callable[..., Any]] = []
         self.agent: SynthesisAgent = TopDownBFS()
+        self.std_operations: list[StandardOperation] = []
 
     def given_output_type(self, output_type: Type[object]) -> None:
         self.output_type = output_type
@@ -313,6 +381,11 @@ class CodeGenerationFixture:
     def given_program_operations(self, operations: list[Callable[..., Any]]) -> None:
         self.operations = operations
 
+    def given_program_standard_operations(
+        self, standard_operations: list[StandardOperation]
+    ) -> None:
+        self.std_operations = standard_operations
+
     def given_agent(self, agent: SynthesisAgent) -> None:
         self.agent = agent
 
@@ -323,7 +396,10 @@ class CodeGenerationFixture:
             operations=[Operation.from_func(op) for op in self.operations],
         )
         generator = ProgramGenerator(
-            dsl=dsl, output_type=self.output_type, agent=self.agent
+            dsl=dsl,
+            standard_operations=self.std_operations,
+            output_type=self.output_type,
+            agent=self.agent,
         )
         for program_graph in generator.enumerate(**kwargs):
             generated_program = graph_to_program(program_graph, "generated_func", dsl)
@@ -334,4 +410,9 @@ class CodeGenerationFixture:
     ) -> None:
         generated = to_source_list(self.generated_asts)
         expected = to_source_list(expected_asts)
-        assert generated == expected
+        assert generated == expected, "\n".join(
+            Differ().compare(
+                json.dumps("\n".join(expected).splitlines(), indent=2).splitlines(),
+                json.dumps("\n".join(generated).splitlines(), indent=2).splitlines(),
+            )
+        )

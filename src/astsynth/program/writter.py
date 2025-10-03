@@ -1,7 +1,7 @@
-from astsynth.program.blanks import Blank, Constant, Input, Operation
+from astsynth.program.blanks import Blank, BlankContent, Constant, Operation
 from astsynth.dsl import DomainSpecificLanguage
 from astsynth.program import GeneratedProgram
-from astsynth.program.graph import ProgramGraph
+from astsynth.program.graph import ProgramGraph, if_sub_blanks
 
 
 from astor import to_source
@@ -68,7 +68,7 @@ def _root_blank_to_ast_body(
     graph: ProgramGraph,
 ) -> Sequence[ast.Return | ast.Assign]:
     ast_value, missing_variables, variables_count = _blank_ast_value(blank, graph, 0)
-    ast_lines: list[ast.Return | ast.Assign] = [ast.Return(ast_value)]
+    ast_lines: list[ast.Return | ast.Assign] = [ast.Return(ast_value)]  # pyright: ignore
 
     while missing_variables:
         var_name, blank = missing_variables.pop(0)
@@ -76,35 +76,79 @@ def _root_blank_to_ast_body(
             blank, graph, variables_count
         )
         missing_variables += new_missing_variables
-        ast_lines.insert(0, ast.Assign(targets=[ast.Name(var_name)], value=ast_value))
+        ast_lines.insert(0, ast.Assign(targets=[ast.Name(var_name)], value=ast_value))  # pyright: ignore
 
     return ast_lines
 
 
 def _blank_ast_value(
     blank: Blank, graph: ProgramGraph, variable_count: int
-) -> tuple[ast.Name | ast.Call, list[tuple[str, Blank]], int]:
+) -> tuple[ast.Name | ast.Call | ast.If, list[tuple[str, Blank]], int]:
     content = graph.content(blank)
+    if content is None:
+        raise TypeError("Cannot represent the ast value of an empty blank")
     missing_variables = []
-    if isinstance(content, (Input, Constant)):
-        ast_value: ast.Name | ast.Call = ast.Name(content.name)
-    elif isinstance(content, Operation):
-        args_asts: list[ast.expr] = []
-        for op_blank in graph.sub_blanks(blank=blank, operation=content):
-            op_blank_content = graph.content(op_blank)
 
-            if isinstance(op_blank_content, (Input, Constant)):
-                args_asts.append(ast.Name(op_blank_content.name))
-
-            elif isinstance(op_blank_content, Operation):
+    def _refer_to_subblank_variable_name(subblank: Blank, subcontent: BlankContent):
+        match subcontent.kind:
+            case "input" | "constant":
+                return subcontent.name
+            case "operation":
                 variable_name = f"x{variable_count}"
-                args_asts.append(ast.Name(variable_name))
-                missing_variables.append((variable_name, op_blank))
-                variable_count += 1
-            else:
-                raise NotImplementedError
+                missing_variables.append((variable_name, subblank))
+                return variable_name
+        raise NotImplementedError
 
-        ast_value = ast.Call(func=ast.Name(content.name), args=args_asts, keywords=[])
-    else:
-        raise TypeError(f"Unsupported type: {type(content)}")
-    return ast_value, missing_variables, variable_count
+    match content.kind:
+        case "input" | "constant":
+            ast_value: ast.Name | ast.Call | ast.If = ast.Name(content.name)
+        case "operation":
+            args_asts: list[ast.expr] = []
+            for op_blank in graph.sub_blanks(blank=blank, operation=content):
+                op_blank_content = graph.content(op_blank)
+                if op_blank_content is None:
+                    raise TypeError("Cannot represent the ast value of an empty blank")
+                var_name = _refer_to_subblank_variable_name(op_blank, op_blank_content)
+                args_asts.append(ast.Name(var_name))
+            ast_value = ast.Call(
+                func=ast.Name(content.name), args=args_asts, keywords=[]
+            )
+        case "if":
+            sub_blanks = if_sub_blanks(graph, blank)
+            test_content = graph.content(sub_blanks.test_expression)
+            if test_content is None:
+                raise TypeError("Cannot represent the ast value of an empty blank")
+            body_content = graph.content(sub_blanks.body)
+            if body_content is None:
+                raise TypeError("Cannot represent the ast value of an empty blank")
+            else_content = graph.content(sub_blanks.else_case)
+            if else_content is None:
+                raise TypeError("Cannot represent the ast value of an empty blank")
+            ast_value = ast.If(
+                test=ast.Name(
+                    _refer_to_subblank_variable_name(
+                        sub_blanks.test_expression, test_content
+                    )
+                ),
+                body=[
+                    ast.Return(
+                        ast.Name(
+                            _refer_to_subblank_variable_name(
+                                sub_blanks.body, body_content
+                            )
+                        )
+                    )
+                ],
+                orelse=[
+                    ast.Return(
+                        ast.Name(
+                            _refer_to_subblank_variable_name(
+                                sub_blanks.else_case, else_content
+                            )
+                        )
+                    )
+                ],
+            )
+        case _:
+            raise TypeError(f"Unsupported type: {type(content)}")
+    return ast_value, missing_variables, variable_count + len(missing_variables)

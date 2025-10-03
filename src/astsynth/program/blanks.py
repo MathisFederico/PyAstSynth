@@ -1,8 +1,21 @@
-from typing import Any, Callable, Generic, Optional, Type, TypeVar, Union
+from typing import (
+    Annotated,
+    Any,
+    Callable,
+    Generic,
+    Literal,
+    Optional,
+    Type,
+    TypeAlias,
+    TypeVar,
+    Union,
+)
 from typing_extensions import Self
 import inspect
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+T = TypeVar("T")
 
 
 class Blank(BaseModel):
@@ -16,22 +29,21 @@ class Blank(BaseModel):
         return hash("Blank|" + self.id)
 
 
-class Input(BaseModel):
+class Input(BaseModel, Generic[T]):
+    kind: Literal["input"] = "input"
     name: str
-    type: Type[Any]
+    type: Type[T]
 
     def __hash__(self) -> int:
         return hash("Input|" + self.name)
 
     @classmethod
-    def from_dict(cls, variable_data: dict[str, Type[Any]]) -> list[Self]:
+    def from_dict(cls, variable_data: dict[str, Type[T]]) -> list[Self]:
         return [cls(name=name, type=type) for name, type in variable_data.items()]
 
 
-T = TypeVar("T")
-
-
 class Constant(BaseModel, Generic[T]):
+    kind: Literal["constant"] = "constant"
     name: str
     value: T
 
@@ -43,8 +55,11 @@ class Constant(BaseModel, Generic[T]):
         return hash("Constant|" + self.name)
 
     @classmethod
-    def from_dict(cls, variable_data: dict[str, Any]) -> list[Self]:
+    def from_dict(cls, variable_data: dict[str, T]) -> list[Self]:
         return [cls(name=name, value=value) for name, value in variable_data.items()]
+
+
+Variable = Union[Input, Constant]
 
 
 class AnnotationMissing(Exception):
@@ -52,6 +67,7 @@ class AnnotationMissing(Exception):
 
 
 class Operation(BaseModel):
+    kind: Literal["operation"] = "operation"
     name: str
     source: str
     output_type: Type[Any]
@@ -86,8 +102,18 @@ class Operation(BaseModel):
         )
 
 
-Variable = Union[Input, Constant]
-BlankContent = Union[Variable, Operation]
+class IfBranching(BaseModel):
+    kind: Literal["if"] = "if"
+
+    def __hash__(self) -> int:
+        return hash("IfBranching")
+
+
+StandardOperation: TypeAlias = Annotated[IfBranching, Field(discriminator="kind")]
+
+BlankContent: TypeAlias = Annotated[
+    Variable | Operation | StandardOperation, Field(discriminator="kind")
+]
 
 
 def function_source(func: Callable) -> str:
