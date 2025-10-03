@@ -66,9 +66,13 @@ def graph_to_program(
 def _root_blank_to_ast_body(
     blank: Blank,
     graph: ProgramGraph,
-) -> Sequence[ast.Return | ast.Assign]:
+) -> Sequence[ast.Return | ast.Assign | ast.If]:
     ast_value, missing_variables, variables_count = _blank_ast_value(blank, graph, 0)
-    ast_lines: list[ast.Return | ast.Assign] = [ast.Return(ast_value)]  # pyright: ignore
+    ast_lines: list[ast.Return | ast.Assign | ast.If] = []
+    if isinstance(ast_value, (ast.Name, ast.Call)):
+        ast_lines.append(ast.Return(ast_value))
+    else:
+        ast_lines.append(ast_value)
 
     while missing_variables:
         var_name, blank = missing_variables.pop(0)

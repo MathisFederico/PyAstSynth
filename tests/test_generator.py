@@ -89,12 +89,17 @@ class TestGeneration:
                 function_ast_from_source_lines(
                     [
                         'EVEN = "even"',
-                        'ODD = "odd"',
+                        "",
+                        "def is_even(number: int) -> bool:",
+                        "    return number % 2 == 0",
+                        "",
                         "",
                         "def generated_func(number: int):",
-                        "    if is_even(number):",
+                        "    x0 = is_even(number)",
+                        "    if x0:",
                         "        return EVEN",
-                        "    return ODD",
+                        "    else:",
+                        "        return EVEN",
                     ]
                 ),
                 function_ast_from_source_lines(
@@ -102,10 +107,49 @@ class TestGeneration:
                         'EVEN = "even"',
                         'ODD = "odd"',
                         "",
+                        "def is_even(number: int) -> bool:",
+                        "    return number % 2 == 0",
+                        "",
+                        "",
                         "def generated_func(number: int):",
-                        "    if is_even(number):",
+                        "    x0 = is_even(number)",
+                        "    if x0:",
+                        "        return EVEN",
+                        "    else:",
                         "        return ODD",
-                        "    return EVEN",
+                    ]
+                ),
+                function_ast_from_source_lines(
+                    [
+                        'EVEN = "even"',
+                        'ODD = "odd"',
+                        "",
+                        "def is_even(number: int) -> bool:",
+                        "    return number % 2 == 0",
+                        "",
+                        "",
+                        "def generated_func(number: int):",
+                        "    x0 = is_even(number)",
+                        "    if x0:",
+                        "        return ODD",
+                        "    else:",
+                        "        return EVEN",
+                    ]
+                ),
+                function_ast_from_source_lines(
+                    [
+                        'ODD = "odd"',
+                        "",
+                        "def is_even(number: int) -> bool:",
+                        "    return number % 2 == 0",
+                        "",
+                        "",
+                        "def generated_func(number: int):",
+                        "    x0 = is_even(number)",
+                        "    if x0:",
+                        "        return ODD",
+                        "    else:",
+                        "        return ODD",
                     ]
                 ),
             ]
